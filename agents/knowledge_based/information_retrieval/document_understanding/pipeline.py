@@ -114,14 +114,20 @@ class UserDocumentPipeline:
 
         elif ext in (".png", ".jpg", ".jpeg"):
             extraction_method = ExtractionMethod.OCR_IMAGE
-            ocr_text, ocr_conf = self.ocr_engine.extract_text_from_image(file_bytes)
-            if ocr_text:
-                extracted_text = ocr_text
-                ocr_status = OCRStatus.SUCCESS
-                avg_confidence = ocr_conf
-            else:
+            try:
+                ocr_text, ocr_conf = self.ocr_engine.extract_text_from_image(file_bytes)
+                if ocr_text:
+                    extracted_text = ocr_text
+                    ocr_status = OCRStatus.SUCCESS
+                    avg_confidence = ocr_conf
+                else:
+                    ocr_status = OCRStatus.FAILED
+                    warnings.append("OCR on image returned empty text.")
+                    avg_confidence = 0.0
+            except Exception as e:
+                logger.error(f"Error performing OCR on image '{orig_filename}': {e}")
                 ocr_status = OCRStatus.FAILED
-                warnings.append("OCR on image returned empty text.")
+                warnings.append(f"Image OCR processing error: {str(e)}")
                 avg_confidence = 0.0
 
         # 3. Document Classification
