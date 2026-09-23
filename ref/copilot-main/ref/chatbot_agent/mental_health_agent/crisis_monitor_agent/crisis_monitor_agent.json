@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "crisis_detected": {
+      "type": "boolean",
+      "description": "Whether a crisis event is detected."
+    },
+    "crisis_type": {
+      "type": "string",
+      "description": "Type of crisis: panic_attack, severe_anxiety, self_harm_intent, emotional_breakdown."
+    },
+    "trigger_keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Words or phrases that triggered the crisis detection."
+    },
+    "urgency": {
+      "type": "string",
+      "description": "Severity: low, medium, high, emergency."
+    },
+    "severity_score": {
+      "type": "number",
+      "description": "Score representing crisis severity (0–100)."
+    }
+  },
+  "required": ["crisis_detected"]
+}

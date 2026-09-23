@@ -1,0 +1,18 @@
+name: escalation_manager_agent
+description: >
+  Agent responsible for determining the correct medical escalation level
+  based on risk detection, safety analysis, confidence checks, and crisis signals.
+model: gpt-5
+entrypoint: agent.py
+output_schema:
+  type: object
+  properties:
+    escalation_level:
+      type: string
+    action:
+      type: string
+    message_type:
+      type: string
+    final_user_message:
+      type: string
+

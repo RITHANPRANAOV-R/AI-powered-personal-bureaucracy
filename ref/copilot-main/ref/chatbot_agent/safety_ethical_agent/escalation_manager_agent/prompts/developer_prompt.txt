@@ -1,0 +1,9 @@
+Follow the rules:
+- If unsafe → level 0
+- If crisis → level 5
+- If critical → level 4
+- If high → level 3
+- If medium → level 2
+- Else → level 1
+
+Output MUST match schema.json exactly.

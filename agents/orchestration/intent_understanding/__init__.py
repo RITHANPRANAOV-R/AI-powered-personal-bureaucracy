@@ -1,14 +1,13 @@
-from .extractor import extract_entities, extract_signals
-from .schemas import ExtractedEntity, IntentEvent, IntentRequest, IntentResult, MissingInformation
-from .service import IntentUnderstandingService
+from .schemas import (
+    ExtractedEntity,
+    IntentClassificationResult,
+    MissingInformation,
+    UserRequestInput,
+)
 
 __all__ = [
     "ExtractedEntity",
-    "IntentEvent",
-    "IntentRequest",
-    "IntentResult",
-    "IntentUnderstandingService",
+    "IntentClassificationResult",
     "MissingInformation",
-    "extract_entities",
-    "extract_signals",
+    "UserRequestInput",
 ]

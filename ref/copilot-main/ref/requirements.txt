@@ -1,0 +1,42 @@
+google-adk
+google-generativeai
+
+edge-tts
+
+geopy
+requests
+
+# --- Core utilities ---
+python-dotenv
+pydantic
+tqdm
+numpy
+
+# --- Image processing ---
+Pillow
+opencv-python
+
+# --- PDF handling ---
+pymupdf
+pdf2image
+
+# --- DICOM handling ---
+pydicom
+pylibjpeg
+pylibjpeg-libjpeg
+pylibjpeg-openjpeg
+
+# --- OCR engines ---
+paddleocr
+paddlepaddle
+pytesseract
+
+# --- Optional helpers ---
+rich
+orjson
+
+# --- Web framework for frontend ---
+flask>=2.3.0
+flask-cors>=4.0.0
+fastapi
+uvicorn

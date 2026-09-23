@@ -1,0 +1,22 @@
+name: medical_safety_checker_agent
+description: >
+  Agent responsible for identifying unsafe or harmful medical content,
+  including self-medication, dosage instructions, diagnosis attempts,
+  dangerous medical claims, and other safety-critical violations.
+model: gpt-5
+entrypoint: agent.py
+output_schema:
+  type: object
+  properties:
+    safety_flag:
+      type: string
+    issues_detected:
+      type: array
+      items:
+        type: string
+    explanation:
+      type: string
+    recommended_actions:
+      type: array
+      items:
+        type: string  

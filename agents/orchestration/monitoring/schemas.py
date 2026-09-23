@@ -1,23 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-
-class IntentState(BaseModel):
-    session_id: str
-    intent_type: str
-    update_type: Optional[str] = None
-    summary: str
-    entities: list[Any] = Field(default_factory=list)
-    urgency: str = "normal"
-    missing_information: list[Any] = Field(default_factory=list)
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    last_updated: datetime
-    version: int = 1
-    change_history: list[str] = Field(default_factory=list)
+from agents.orchestration.intent_understanding.schemas import ExtractedEntity, MissingInformation
 
 
 class ChangeDelta(BaseModel):
@@ -28,23 +16,31 @@ class ChangeDelta(BaseModel):
     reason: str = ""
 
 
-class UpdateRequest(BaseModel):
-    session_id: str
-    previous_state: IntentState
-    new_intent: Any
-
-
-class UpdateResult(BaseModel):
-    session_id: str
-    changes: list[ChangeDelta] = Field(default_factory=list)
-    updated_state: IntentState
-    events: list[Any] = Field(default_factory=list)
-
-
-class MonitoringEvent(BaseModel):
-    event_id: str
-    session_id: str
-    event_type: str
-    timestamp: datetime
-    intent_type: str
-    payload: dict[str, Any] = Field(default_factory=dict)
+class SessionState(BaseModel):
+    session_id: str = Field(min_length=1)
+    intent_type: Literal[
+        "status_inquiry",
+        "update_request",
+        "correction_request",
+        "document_request",
+        "complaint",
+        "enrollment",
+        "general_assistance",
+    ]
+    update_type: Optional[Literal[
+        "address",
+        "mobile_number",
+        "email",
+        "name",
+        "date_of_birth",
+        "gender",
+        "biometric",
+        "unknown",
+    ]] = None
+    summary: str = Field(min_length=1)
+    entities: list[ExtractedEntity] = Field(default_factory=list)
+    missing_information: list[MissingInformation] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    version: int = Field(default=1, ge=1)
+    change_history: list[ChangeDelta] = Field(default_factory=list)

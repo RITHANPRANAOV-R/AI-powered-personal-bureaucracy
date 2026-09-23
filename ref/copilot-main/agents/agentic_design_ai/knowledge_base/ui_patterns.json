@@ -1,0 +1,73 @@
+[
+    {
+        "name": "Dashboard Layout",
+        "components": [
+            "Sidebar",
+            "Stat Cards",
+            "Line Charts",
+            "Recent Activity Feed"
+        ],
+        "sections": [
+            "Overview",
+            "Analytics",
+            "Settings"
+        ]
+    },
+    {
+        "name": "SaaS Landing Page",
+        "components": [
+            "Hero Section",
+            "Feature Grid",
+            "Pricing Table",
+            "Testimonial Carousel"
+        ],
+        "sections": [
+            "Hero",
+            "Features",
+            "Pricing",
+            "Footer"
+        ]
+    },
+    {
+        "name": "Interactive Map Interface",
+        "components": [
+            "Map Canvas",
+            "Search Overlay",
+            "Filter Drawer",
+            "Detail Modal"
+        ],
+        "sections": [
+            "Map View",
+            "Search Results",
+            "Saved Locations"
+        ]
+    },
+    {
+        "name": "E-commerce Product View",
+        "components": [
+            "Image Gallery",
+            "Product Details",
+            "Reviews Section",
+            "Add to Cart Sidebar"
+        ],
+        "sections": [
+            "Product Info",
+            "Customer Reviews",
+            "Related Products"
+        ]
+    },
+    {
+        "name": "Social Feed",
+        "components": [
+            "Post Editor",
+            "Scrolling Newsfeed",
+            "Friend Recommendations",
+            "Trend Bar"
+        ],
+        "sections": [
+            "Main Feed",
+            "User Profile",
+            "Notifications"
+        ]
+    }
+]
