@@ -39,7 +39,7 @@ class IntentClassificationResult(BaseModel):
         "complaint",
         "enrollment",
         "general_assistance",
-    ]
+    ] = "general_assistance"
     update_type: Optional[Literal[
         "address",
         "mobile_number",
@@ -55,3 +55,16 @@ class IntentClassificationResult(BaseModel):
     urgency: Literal["low", "normal", "high"] = "normal"
     missing_information: list[MissingInformation] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+IntentRequest = UserRequestInput
+IntentResult = IntentClassificationResult
+
+__all__ = [
+    "ExtractedEntity",
+    "IntentClassificationResult",
+    "IntentRequest",
+    "IntentResult",
+    "MissingInformation",
+    "UserRequestInput",
+]

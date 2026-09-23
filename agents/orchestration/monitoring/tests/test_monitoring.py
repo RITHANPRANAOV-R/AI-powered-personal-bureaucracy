@@ -1,14 +1,14 @@
 from datetime import datetime, timezone
 
 from agents.orchestration.intent_understanding.schemas import ExtractedEntity, IntentRequest, IntentResult, MissingInformation
-from agents.orchestration.monitoring.schemas import IntentState
+from agents.orchestration.monitoring.schemas import ChangeDelta, SessionState
 from agents.orchestration.monitoring.service import MonitoringService
 
 
 def build_state(**kwargs):
     default = {
         "session_id": "session-1",
-        "intent_type": "update",
+        "intent_type": "update_request",
         "update_type": "address",
         "summary": "User wants to update Aadhaar address.",
         "entities": [ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.9)],
@@ -17,17 +17,25 @@ def build_state(**kwargs):
         "confidence": 0.85,
         "last_updated": datetime.now(timezone.utc),
         "version": 1,
-        "change_history": ["initial_state"],
+        "change_history": [
+            ChangeDelta(
+                field_name="status",
+                previous_value=None,
+                new_value="initial_state",
+                change_type="initial_state",
+                reason="Initial state created.",
+            )
+        ],
     }
     default.update(kwargs)
-    return IntentState(**default)
+    return SessionState(**default)
 
 
 def test_no_change():
     previous = build_state()
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.9)],
@@ -38,14 +46,14 @@ def test_no_change():
 
     result = MonitoringService().process(previous, new_intent)
     assert result.changes == []
-    assert result.updated_state.intent_type == "update"
+    assert result.updated_state.intent_type == "update_request"
 
 
 def test_address_update():
     previous = build_state()
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.95)],
@@ -63,7 +71,7 @@ def test_mobile_number_update():
     previous = build_state(update_type="address")
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="mobile_number",
         summary="User wants to update mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="mobile_number", normalized_value="mobile_number", confidence=0.9)],
@@ -81,7 +89,7 @@ def test_new_entity_added():
     previous = build_state(entities=[ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.9)])
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address and email.",
         entities=[
@@ -101,7 +109,7 @@ def test_missing_information_resolved():
     previous = build_state(missing_information=[MissingInformation(field_name="update_type", reason="Not specified", required=True, severity="medium")])
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.9)],
@@ -118,7 +126,7 @@ def test_intent_replacement():
     previous = build_state(intent_type="status_inquiry", update_type=None)
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="mobile_number",
         summary="User now wants to update mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="mobile_number", normalized_value="mobile_number", confidence=0.9)],
@@ -135,7 +143,7 @@ def test_contradictory_values():
     previous = build_state(summary="User wants to update Aadhaar address.")
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="mobile_number", normalized_value="mobile_number", confidence=0.9)],
@@ -155,7 +163,7 @@ def test_multiple_changes_in_one_message():
     )
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[
@@ -178,7 +186,7 @@ def test_previous_state_not_mutated():
     original_summary = previous.summary
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="mobile_number",
         summary="User wants to update mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="mobile_number", normalized_value="mobile_number", confidence=0.9)],
@@ -194,10 +202,13 @@ def test_previous_state_not_mutated():
 
 
 def test_state_history_is_preserved():
-    previous = build_state(change_history=["initial_state", "first_update"]) 
+    previous = build_state(change_history=[
+        ChangeDelta(field_name="status", previous_value=None, new_value="initial_state", change_type="initial_state", reason="Initial state created."),
+        ChangeDelta(field_name="status", previous_value="initial_state", new_value="first_update", change_type="field_updated", reason="History updated."),
+    ])
     new_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="address", normalized_value="address", confidence=0.9)],
@@ -208,19 +219,19 @@ def test_state_history_is_preserved():
 
     result = MonitoringService().process(previous, new_intent)
     assert len(result.updated_state.change_history) >= 2
-    assert "initial_state" in result.updated_state.change_history
+    assert any(entry.change_type == "initial_state" for entry in result.updated_state.change_history)
 
 
 def test_state_progression_for_address_then_mobile_number():
     state_1 = build_state(
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         missing_information=[MissingInformation(field_name="new_address", reason="Address update target is specified but not yet provided.", required=True, severity="medium")],
     )
     intent_2 = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="Coimbatore", normalized_value="coimbatore", confidence=0.95)],
@@ -230,7 +241,7 @@ def test_state_progression_for_address_then_mobile_number():
     )
     intent_3 = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="mobile_number",
         summary="User wants to update Aadhaar mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="9876543210", normalized_value="9876543210", confidence=0.95)],
@@ -246,19 +257,19 @@ def test_state_progression_for_address_then_mobile_number():
     result_2 = MonitoringService().process(result_1.updated_state, intent_3)
     assert result_2.updated_state.update_type == "mobile_number"
     assert any(change.field_name == "update_type" and change.change_type == "intent_replaced" for change in result_2.changes)
-    assert any(event.event_type == "intent_replaced" for event in result_2.events)
+    assert any(change.change_type == "intent_replaced" for change in result_2.events)
 
 
 def test_public_monitoring_contract_for_downstream_state_consumers():
     initial_state = build_state(
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         missing_information=[MissingInformation(field_name="new_address", reason="Address update target is specified but not yet provided.", required=True, severity="medium")],
     )
     resolved_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="address",
         summary="User wants to update Aadhaar address.",
         entities=[ExtractedEntity(entity_type="address", value="Coimbatore", normalized_value="coimbatore", confidence=0.95)],
@@ -268,7 +279,7 @@ def test_public_monitoring_contract_for_downstream_state_consumers():
     )
     transition_intent = IntentResult(
         session_id="session-1",
-        intent_type="update",
+        intent_type="update_request",
         update_type="mobile_number",
         summary="User wants to update Aadhaar mobile number.",
         entities=[ExtractedEntity(entity_type="mobile_number", value="9876543210", normalized_value="9876543210", confidence=0.95)],
@@ -278,7 +289,7 @@ def test_public_monitoring_contract_for_downstream_state_consumers():
     )
 
     resolved = MonitoringService().process(initial_state, resolved_intent)
-    assert resolved.updated_state.intent_type == "update"
+    assert resolved.updated_state.intent_type == "update_request"
     assert resolved.updated_state.update_type == "address"
     assert any(change.change_type == "missing_information_resolved" for change in resolved.changes)
 
@@ -297,11 +308,11 @@ def test_end_to_end_intent_understanding_and_monitoring_flow():
         user_message=message_1,
     ))
 
-    assert result_1.intent_type == "update"
+    assert result_1.intent_type == "update_request"
     assert result_1.update_type == "address"
     assert any(item.field_name == "new_address" for item in result_1.missing_information)
 
-    state_1 = IntentState(
+    state_1 = SessionState(
         session_id=result_1.session_id,
         intent_type=result_1.intent_type,
         update_type=result_1.update_type,
@@ -312,7 +323,15 @@ def test_end_to_end_intent_understanding_and_monitoring_flow():
         confidence=result_1.confidence,
         last_updated=datetime.now(timezone.utc),
         version=1,
-        change_history=["initial_state"],
+        change_history=[
+            ChangeDelta(
+                field_name="status",
+                previous_value=None,
+                new_value="initial_state",
+                change_type="initial_state",
+                reason="Initial state created.",
+            )
+        ],
     )
 
     message_2 = "My new address is Coimbatore."
@@ -333,7 +352,7 @@ def test_end_to_end_intent_understanding_and_monitoring_flow():
         user_message=message_3,
     ))
 
-    assert result_3.intent_type == "update"
+    assert result_3.intent_type == "update_request"
     assert result_3.update_type == "mobile_number"
     monitored_3 = MonitoringService().process(monitored_2.updated_state, result_3)
     assert monitored_3.updated_state.update_type == "mobile_number"

@@ -26,7 +26,7 @@ class SessionState(BaseModel):
         "complaint",
         "enrollment",
         "general_assistance",
-    ]
+    ] = "general_assistance"
     update_type: Optional[Literal[
         "address",
         "mobile_number",
@@ -39,8 +39,15 @@ class SessionState(BaseModel):
     ]] = None
     summary: str = Field(min_length=1)
     entities: list[ExtractedEntity] = Field(default_factory=list)
+    urgency: Literal["low", "normal", "high"] = "normal"
     missing_information: list[MissingInformation] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     version: int = Field(default=1, ge=1)
     change_history: list[ChangeDelta] = Field(default_factory=list)
+
+
+__all__ = [
+    "ChangeDelta",
+    "SessionState",
+]
