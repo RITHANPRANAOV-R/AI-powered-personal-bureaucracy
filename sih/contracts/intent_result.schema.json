@@ -1,0 +1,246 @@
+{
+  "$defs": {
+    "Complexity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "unknown"
+      ],
+      "title": "Complexity",
+      "type": "string"
+    },
+    "EntitySource": {
+      "enum": [
+        "user_goal",
+        "user_context",
+        "document_context",
+        "conversation_context"
+      ],
+      "title": "EntitySource",
+      "type": "string"
+    },
+    "IntentStatus": {
+      "enum": [
+        "ready",
+        "needs_clarification",
+        "unable_to_classify"
+      ],
+      "title": "IntentStatus",
+      "type": "string"
+    },
+    "SourcedEntity": {
+      "description": "A typed entity extracted from caller-supplied text only.",
+      "properties": {
+        "type": {
+          "description": "Entity type, e.g. service, location, document, person_name",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "description": "Extracted entity value",
+          "title": "Value",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/EntitySource",
+          "description": "Which request field the entity was taken from"
+        }
+      },
+      "required": [
+        "type",
+        "value",
+        "source"
+      ],
+      "title": "SourcedEntity",
+      "type": "object"
+    },
+    "SourcedStatement": {
+      "description": "A fact or observation with provenance.",
+      "properties": {
+        "text": {
+          "description": "Short statement",
+          "title": "Text",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/EntitySource",
+          "description": "Which request field the statement was taken from"
+        }
+      },
+      "required": [
+        "text",
+        "source"
+      ],
+      "title": "SourcedStatement",
+      "type": "object"
+    },
+    "TaskType": {
+      "enum": [
+        "register",
+        "apply",
+        "renew",
+        "reissue",
+        "update",
+        "track",
+        "understand_requirements",
+        "other",
+        "unknown"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "description": "Canonical serialized output passed to later agents.\n\nDownstream components must consume this object, not terminal prose or raw model text.",
+  "properties": {
+    "contract_version": {
+      "description": "Intent contract version. Must match the request (1.0).",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Same ID as the corresponding IntentRequest",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "original_goal": {
+      "description": "User goal preserved for this run",
+      "title": "Original Goal",
+      "type": "string"
+    },
+    "normalized_goal": {
+      "description": "Concise restatement of the user goal without added facts",
+      "title": "Normalized Goal",
+      "type": "string"
+    },
+    "service_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Likely government service name, or null if not identified",
+      "title": "Service Name"
+    },
+    "document_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Likely document or certificate type, or null if not identified",
+      "title": "Document Type"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType",
+      "description": "Classified task type"
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Jurisdiction only when explicitly present in the request or supplied context",
+      "title": "Jurisdiction"
+    },
+    "entities": {
+      "description": "Typed entities with provenance",
+      "items": {
+        "$ref": "#/$defs/SourcedEntity"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "stated_facts": {
+      "description": "Facts that were explicitly stated by the caller",
+      "items": {
+        "$ref": "#/$defs/SourcedStatement"
+      },
+      "title": "Stated Facts",
+      "type": "array"
+    },
+    "assumptions": {
+      "description": "Possible interpretations that remain unconfirmed",
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "ambiguities": {
+      "description": "Unresolved items that block a confident classification",
+      "items": {
+        "type": "string"
+      },
+      "title": "Ambiguities",
+      "type": "array"
+    },
+    "clarification_questions": {
+      "description": "Short questions asked only when needed to identify the task or service",
+      "items": {
+        "type": "string"
+      },
+      "title": "Clarification Questions",
+      "type": "array"
+    },
+    "language": {
+      "description": "Stated language preference, otherwise English",
+      "title": "Language",
+      "type": "string"
+    },
+    "urgency": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Explicit urgency if stated; otherwise null. Do not infer from unrelated wording.",
+      "title": "Urgency"
+    },
+    "complexity": {
+      "$ref": "#/$defs/Complexity",
+      "description": "Estimated workflow complexity"
+    },
+    "confidence": {
+      "description": "Calibrated confidence that the classification is correct, from 0 to 1",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "status": {
+      "$ref": "#/$defs/IntentStatus",
+      "description": "Classification completeness for downstream routing"
+    }
+  },
+  "required": [
+    "contract_version",
+    "request_id",
+    "original_goal",
+    "normalized_goal",
+    "task_type",
+    "language",
+    "complexity",
+    "confidence",
+    "status"
+  ],
+  "title": "IntentResult",
+  "type": "object"
+}

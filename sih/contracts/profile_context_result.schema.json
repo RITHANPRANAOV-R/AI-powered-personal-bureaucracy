@@ -1,0 +1,371 @@
+{
+  "$defs": {
+    "ConsentAction": {
+      "enum": [
+        "save",
+        "use_once",
+        "skip"
+      ],
+      "title": "ConsentAction",
+      "type": "string"
+    },
+    "ConsentUpdate": {
+      "description": "Records a persistence decision. Does not include secret or full identifier values.",
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/ConsentAction"
+        },
+        "persisted": {
+          "default": false,
+          "title": "Persisted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "action"
+      ],
+      "title": "ConsentUpdate",
+      "type": "object"
+    },
+    "FactConflict": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "competing_values": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Competing Values",
+          "type": "array"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "FactConflict",
+      "type": "object"
+    },
+    "FactSourceType": {
+      "enum": [
+        "user",
+        "profile",
+        "document",
+        "derived"
+      ],
+      "title": "FactSourceType",
+      "type": "string"
+    },
+    "FactStatus": {
+      "enum": [
+        "user_confirmed",
+        "document_extracted",
+        "inferred",
+        "unknown"
+      ],
+      "title": "FactStatus",
+      "type": "string"
+    },
+    "FileScanStatus": {
+      "enum": [
+        "read",
+        "unsupported",
+        "unreadable",
+        "skipped"
+      ],
+      "title": "FileScanStatus",
+      "type": "string"
+    },
+    "ProcessingMode": {
+      "enum": [
+        "deterministic",
+        "ollama",
+        "mixed"
+      ],
+      "title": "ProcessingMode",
+      "type": "string"
+    },
+    "ProfileFact": {
+      "properties": {
+        "key": {
+          "description": "Normalized stable snake_case key",
+          "title": "Key",
+          "type": "string"
+        },
+        "value": {
+          "description": "Extracted or proposed value; must not be a secret",
+          "title": "Value",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FactStatus"
+        },
+        "source_type": {
+          "$ref": "#/$defs/FactSourceType"
+        },
+        "source_ref": {
+          "description": "Safe relative file path or profile key; never an absolute path",
+          "title": "Source Ref",
+          "type": "string"
+        },
+        "extracted_at": {
+          "description": "ISO-8601 timestamp",
+          "title": "Extracted At",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "relevant_to": {
+          "description": "Why this fact matters for the current goal",
+          "title": "Relevant To",
+          "type": "string"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/Sensitivity",
+          "default": "ordinary"
+        },
+        "confirmed_by_user": {
+          "default": false,
+          "title": "Confirmed By User",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "value",
+        "status",
+        "source_type",
+        "source_ref",
+        "extracted_at",
+        "relevant_to"
+      ],
+      "title": "ProfileFact",
+      "type": "object"
+    },
+    "ProfileStatus": {
+      "enum": [
+        "ready",
+        "needs_user_input",
+        "conflicts_found",
+        "no_relevant_context",
+        "partial",
+        "failed"
+      ],
+      "title": "ProfileStatus",
+      "type": "string"
+    },
+    "ScannedFile": {
+      "properties": {
+        "relative_path": {
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FileScanStatus"
+        },
+        "media_type": {
+          "default": "unknown",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "character_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Character Count"
+        },
+        "warning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Warning"
+        }
+      },
+      "required": [
+        "relative_path",
+        "status"
+      ],
+      "title": "ScannedFile",
+      "type": "object"
+    },
+    "Sensitivity": {
+      "enum": [
+        "ordinary",
+        "personal",
+        "highly_sensitive"
+      ],
+      "title": "Sensitivity",
+      "type": "string"
+    },
+    "TaskType": {
+      "enum": [
+        "register",
+        "apply",
+        "renew",
+        "reissue",
+        "update",
+        "track",
+        "understand_requirements",
+        "other",
+        "unknown"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "description": "Canonical handoff to Information Retrieval and Workflow Planning.",
+  "properties": {
+    "contract_version": {
+      "description": "Profile contract version. Initial value is 1.0.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "intent_request_id": {
+      "title": "Intent Request Id",
+      "type": "string"
+    },
+    "service_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Service Name"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Jurisdiction"
+    },
+    "profile_status": {
+      "$ref": "#/$defs/ProfileStatus"
+    },
+    "relevant_facts": {
+      "items": {
+        "$ref": "#/$defs/ProfileFact"
+      },
+      "title": "Relevant Facts",
+      "type": "array"
+    },
+    "missing_requested_facts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Requested Facts",
+      "type": "array"
+    },
+    "conflicts": {
+      "items": {
+        "$ref": "#/$defs/FactConflict"
+      },
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "questions_for_user": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Questions For User",
+      "type": "array"
+    },
+    "scanned_files": {
+      "items": {
+        "$ref": "#/$defs/ScannedFile"
+      },
+      "title": "Scanned Files",
+      "type": "array"
+    },
+    "consent_updates": {
+      "items": {
+        "$ref": "#/$defs/ConsentUpdate"
+      },
+      "title": "Consent Updates",
+      "type": "array"
+    },
+    "profile_updated": {
+      "default": false,
+      "title": "Profile Updated",
+      "type": "boolean"
+    },
+    "processing_mode": {
+      "$ref": "#/$defs/ProcessingMode",
+      "default": "deterministic"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_version",
+    "request_id",
+    "intent_request_id",
+    "task_type",
+    "profile_status"
+  ],
+  "title": "ProfileContextResult",
+  "type": "object"
+}

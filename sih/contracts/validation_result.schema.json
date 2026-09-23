@@ -1,0 +1,322 @@
+{
+  "$defs": {
+    "IssueCategory": {
+      "enum": [
+        "contract_mismatch",
+        "unsupported_claim",
+        "evidence_missing",
+        "source_not_allowed",
+        "fact_unconfirmed",
+        "dependency_invalid",
+        "approval_missing",
+        "out_of_scope_action",
+        "duplicate_submission_risk",
+        "execution_mismatch",
+        "uncertain_result"
+      ],
+      "title": "IssueCategory",
+      "type": "string"
+    },
+    "IssueSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "needs_user_input",
+        "blocker"
+      ],
+      "title": "IssueSeverity",
+      "type": "string"
+    },
+    "StepValidationDecision": {
+      "enum": [
+        "approve",
+        "needs_user_input",
+        "block"
+      ],
+      "title": "StepValidationDecision",
+      "type": "string"
+    },
+    "StepValidationResult": {
+      "description": "Validation result for an individual plan step.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/$defs/StepValidationDecision"
+        },
+        "passed_rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Passed Rule Ids",
+          "type": "array"
+        },
+        "failed_rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Failed Rule Ids",
+          "type": "array"
+        },
+        "cited_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cited Evidence Ids",
+          "type": "array"
+        },
+        "required_confirmed_fact_keys": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Confirmed Fact Keys",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step_id",
+        "decision"
+      ],
+      "title": "StepValidationResult",
+      "type": "object"
+    },
+    "UserApprovalCheckpoint": {
+      "description": "Description of an approval checkpoint required before execution.",
+      "properties": {
+        "approval_id": {
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "required_phrase": {
+          "title": "Required Phrase",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "step_id",
+        "required_phrase",
+        "description"
+      ],
+      "title": "UserApprovalCheckpoint",
+      "type": "object"
+    },
+    "ValidationDecision": {
+      "enum": [
+        "approve",
+        "needs_user_input",
+        "block"
+      ],
+      "title": "ValidationDecision",
+      "type": "string"
+    },
+    "ValidationIssue": {
+      "description": "Actionable diagnostic issue produced by policy evaluation.",
+      "properties": {
+        "issue_id": {
+          "title": "Issue Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/IssueSeverity"
+        },
+        "category": {
+          "$ref": "#/$defs/IssueCategory"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "affected_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Step Ids",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "fact_keys": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fact Keys",
+          "type": "array"
+        },
+        "approval_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Approval Ids",
+          "type": "array"
+        },
+        "required_resolution": {
+          "description": "Action needed to resolve the issue",
+          "title": "Required Resolution",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "category",
+        "message",
+        "required_resolution"
+      ],
+      "title": "ValidationIssue",
+      "type": "object"
+    },
+    "ValidationPhase": {
+      "enum": [
+        "pre_execution",
+        "post_execution"
+      ],
+      "title": "ValidationPhase",
+      "type": "string"
+    }
+  },
+  "description": "Canonical output contract of the Compliance & Validation Agent.\n\n`decision = approve` ONLY means the plan is eligible for user review.\n`execution_authorized` is ALWAYS false.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "description": "Contract version. Initial value is 1.0.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "validation_request_id": {
+      "description": "Validation pass correlation ID",
+      "title": "Validation Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Originating Intent request_id",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "plan_id": {
+      "description": "Workflow plan ID being validated",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "plan_version": {
+      "description": "Workflow plan version",
+      "minimum": 1,
+      "title": "Plan Version",
+      "type": "integer"
+    },
+    "validation_phase": {
+      "$ref": "#/$defs/ValidationPhase",
+      "description": "pre_execution or post_execution"
+    },
+    "decision": {
+      "$ref": "#/$defs/ValidationDecision",
+      "description": "approve, needs_user_input, or block"
+    },
+    "decision_scope": {
+      "default": "approve means only 'plan is eligible to be shown for user review'. It does NOT authorize execution or form submission.",
+      "description": "Explicit meaning of the decision",
+      "title": "Decision Scope",
+      "type": "string"
+    },
+    "eligible_for_user_review": {
+      "description": "Whether the plan may be presented to the user for human review",
+      "title": "Eligible For User Review",
+      "type": "boolean"
+    },
+    "eligible_step_ids": {
+      "description": "Steps that passed deterministic checks and may be shown for review",
+      "items": {
+        "type": "string"
+      },
+      "title": "Eligible Step Ids",
+      "type": "array"
+    },
+    "blocked_step_ids": {
+      "description": "Steps that failed compliance checks and must not proceed",
+      "items": {
+        "type": "string"
+      },
+      "title": "Blocked Step Ids",
+      "type": "array"
+    },
+    "step_results": {
+      "description": "Individual validation result per step",
+      "items": {
+        "$ref": "#/$defs/StepValidationResult"
+      },
+      "title": "Step Results",
+      "type": "array"
+    },
+    "issues": {
+      "description": "Actionable compliance and safety issues",
+      "items": {
+        "$ref": "#/$defs/ValidationIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "required_user_approvals": {
+      "description": "Approval checkpoints still required from the user",
+      "items": {
+        "$ref": "#/$defs/UserApprovalCheckpoint"
+      },
+      "title": "Required User Approvals",
+      "type": "array"
+    },
+    "execution_authorized": {
+      "default": false,
+      "description": "ALWAYS false. The validator never grants authorization to execute.",
+      "title": "Execution Authorized",
+      "type": "boolean"
+    },
+    "validated_at": {
+      "description": "ISO-8601 timestamp of validation",
+      "title": "Validated At",
+      "type": "string"
+    },
+    "policy_version": {
+      "default": "1.0.0",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "summary": {
+      "description": "Concise user-facing explanation",
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "validation_request_id",
+    "request_id",
+    "plan_id",
+    "plan_version",
+    "validation_phase",
+    "decision",
+    "eligible_for_user_review",
+    "validated_at",
+    "summary"
+  ],
+  "title": "ValidationResult",
+  "type": "object"
+}

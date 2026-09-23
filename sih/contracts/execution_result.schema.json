@@ -1,0 +1,349 @@
+{
+  "$defs": {
+    "ExecutionStatus": {
+      "enum": [
+        "not_started",
+        "in_progress",
+        "needs_user_input",
+        "paused_for_user",
+        "prepared_for_review",
+        "submission_attempted",
+        "confirmation_observed",
+        "uncertain",
+        "blocked",
+        "cancelled",
+        "failed"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "FieldActionRecord": {
+      "description": "Log record of a non-secret field preparation/fill action.",
+      "properties": {
+        "field_label": {
+          "description": "Visible field label or role name",
+          "title": "Field Label",
+          "type": "string"
+        },
+        "approval_id": {
+          "description": "User approval record ID for this field fill",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "filled, skipped, failed, or manual_required",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "masked_value": {
+          "description": "Redacted/masked value displayed for user privacy",
+          "title": "Masked Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field_label",
+        "approval_id",
+        "outcome",
+        "masked_value"
+      ],
+      "title": "FieldActionRecord",
+      "type": "object"
+    },
+    "PortalObservation": {
+      "description": "Observed browser page status from Playwright.",
+      "properties": {
+        "observation_id": {
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "page_title": {
+          "description": "Visible web page title",
+          "title": "Page Title",
+          "type": "string"
+        },
+        "url": {
+          "description": "Current validated allowlisted URL",
+          "title": "Url",
+          "type": "string"
+        },
+        "visible_status": {
+          "description": "Visible page status summary",
+          "title": "Visible Status",
+          "type": "string"
+        },
+        "observed_at": {
+          "description": "ISO-8601 timestamp",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "source_type": {
+          "default": "playwright_visible_page",
+          "description": "Observation source",
+          "title": "Source Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "page_title",
+        "url",
+        "visible_status",
+        "observed_at"
+      ],
+      "title": "PortalObservation",
+      "type": "object"
+    },
+    "StepExecutionResult": {
+      "description": "Execution result for an individual plan step.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/StepExecutionStatus"
+        },
+        "action_summary": {
+          "description": "Summary of browser actions taken",
+          "title": "Action Summary",
+          "type": "string"
+        },
+        "started_at": {
+          "description": "ISO-8601 timestamp",
+          "title": "Started At",
+          "type": "string"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 timestamp",
+          "title": "Completed At"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step_id",
+        "status",
+        "action_summary",
+        "started_at"
+      ],
+      "title": "StepExecutionResult",
+      "type": "object"
+    },
+    "StepExecutionStatus": {
+      "enum": [
+        "not_started",
+        "in_progress",
+        "needs_user_input",
+        "paused_for_user",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "title": "StepExecutionStatus",
+      "type": "string"
+    },
+    "UserPausePoint": {
+      "description": "Record of a manual pause event (e.g. CAPTCHA, OTP, Password, manual review).",
+      "properties": {
+        "pause_id": {
+          "title": "Pause Id",
+          "type": "string"
+        },
+        "step_id": {
+          "description": "Step ID active during pause",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Reason for pause (e.g. CAPTCHA challenge)",
+          "title": "Reason",
+          "type": "string"
+        },
+        "paused_at": {
+          "description": "ISO-8601 timestamp when paused",
+          "title": "Paused At",
+          "type": "string"
+        },
+        "resumed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 timestamp when resumed",
+          "title": "Resumed At"
+        },
+        "resume_status": {
+          "default": "pending",
+          "description": "pending, resumed_by_user, cancelled",
+          "title": "Resume Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "reason",
+        "paused_at"
+      ],
+      "title": "UserPausePoint",
+      "type": "object"
+    }
+  },
+  "description": "Canonical output contract of the Execution & Assistance Agent.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "execution_request_id": {
+      "description": "Execution request ID",
+      "title": "Execution Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Originating Intent request_id",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "plan_id": {
+      "description": "Workflow plan ID executed",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "plan_version": {
+      "minimum": 1,
+      "title": "Plan Version",
+      "type": "integer"
+    },
+    "validation_request_id": {
+      "description": "Validated ValidationResult ID",
+      "title": "Validation Request Id",
+      "type": "string"
+    },
+    "execution_status": {
+      "$ref": "#/$defs/ExecutionStatus",
+      "description": "Top-level execution status"
+    },
+    "step_results": {
+      "items": {
+        "$ref": "#/$defs/StepExecutionResult"
+      },
+      "title": "Step Results",
+      "type": "array"
+    },
+    "field_actions": {
+      "items": {
+        "$ref": "#/$defs/FieldActionRecord"
+      },
+      "title": "Field Actions",
+      "type": "array"
+    },
+    "user_pause_points": {
+      "items": {
+        "$ref": "#/$defs/UserPausePoint"
+      },
+      "title": "User Pause Points",
+      "type": "array"
+    },
+    "portal_observations": {
+      "items": {
+        "$ref": "#/$defs/PortalObservation"
+      },
+      "title": "Portal Observations",
+      "type": "array"
+    },
+    "approval_records_used": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Approval Records Used",
+      "type": "array"
+    },
+    "submission_attempted": {
+      "default": false,
+      "description": "True if pre-submit marker was written before submission click",
+      "title": "Submission Attempted",
+      "type": "boolean"
+    },
+    "confirmation_observed": {
+      "default": false,
+      "description": "True ONLY if official portal returned a visible confirmation record",
+      "title": "Confirmation Observed",
+      "type": "boolean"
+    },
+    "confirmation_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Masked confirmation ID or portal reference text if observed",
+      "title": "Confirmation Reference"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "safe_resume_state": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Safe Resume State"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    }
+  },
+  "required": [
+    "execution_request_id",
+    "request_id",
+    "plan_id",
+    "plan_version",
+    "validation_request_id",
+    "execution_status"
+  ],
+  "title": "ExecutionResult",
+  "type": "object"
+}

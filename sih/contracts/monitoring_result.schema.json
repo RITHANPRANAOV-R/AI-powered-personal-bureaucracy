@@ -1,0 +1,440 @@
+{
+  "$defs": {
+    "EventSourceType": {
+      "enum": [
+        "plan",
+        "validation_agent",
+        "execution_agent",
+        "official_portal_visible",
+        "user_reported"
+      ],
+      "title": "EventSourceType",
+      "type": "string"
+    },
+    "LocalReminder": {
+      "description": "Local CLI reminder for pending follow-ups or deadlines.",
+      "properties": {
+        "reminder_id": {
+          "title": "Reminder Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "due_at": {
+          "description": "ISO-8601 timestamp when reminder is due",
+          "title": "Due At",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "UTC",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "message": {
+          "description": "Reminder message for display in CLI",
+          "title": "Message",
+          "type": "string"
+        },
+        "source_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Evidence Ids",
+          "type": "array"
+        },
+        "is_due": {
+          "default": false,
+          "title": "Is Due",
+          "type": "boolean"
+        },
+        "is_overdue": {
+          "default": false,
+          "title": "Is Overdue",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "step_id",
+        "due_at",
+        "message"
+      ],
+      "title": "LocalReminder",
+      "type": "object"
+    },
+    "ManualFollowUpInstruction": {
+      "description": "Instructions for user-initiated manual portal status checking.",
+      "properties": {
+        "title": {
+          "default": "Check Official Portal Application Status",
+          "title": "Title",
+          "type": "string"
+        },
+        "portal_name": {
+          "default": "Passport Seva Official Portal",
+          "title": "Portal Name",
+          "type": "string"
+        },
+        "official_url": {
+          "default": "https://services2.passportindia.gov.in/forms/",
+          "title": "Official Url",
+          "type": "string"
+        },
+        "instructions": {
+          "default": "Visit the official portal manually, log in or enter your ARN, complete the CAPTCHA, and view status.",
+          "title": "Instructions",
+          "type": "string"
+        },
+        "required_user_inputs": {
+          "description": "Non-stored inputs user must complete manually on portal",
+          "items": {
+            "type": "string"
+          },
+          "title": "Required User Inputs",
+          "type": "array"
+        }
+      },
+      "title": "ManualFollowUpInstruction",
+      "type": "object"
+    },
+    "MonitoringStatus": {
+      "enum": [
+        "current",
+        "changed",
+        "needs_user_update",
+        "manual_check_required",
+        "uncertain",
+        "blocked",
+        "failed"
+      ],
+      "title": "MonitoringStatus",
+      "type": "string"
+    },
+    "PendingAction": {
+      "description": "Outstanding task requiring user or system attention.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "action_title": {
+          "title": "Action Title",
+          "type": "string"
+        },
+        "assigned_to": {
+          "description": "user, execution_agent, or manual_portal_check",
+          "title": "Assigned To",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "action_title",
+        "assigned_to",
+        "reason"
+      ],
+      "title": "PendingAction",
+      "type": "object"
+    },
+    "StateChange": {
+      "description": "Change detected since previous monitoring pass.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "field_name": {
+          "description": "Field or status property changed",
+          "title": "Field Name",
+          "type": "string"
+        },
+        "previous_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Value"
+        },
+        "current_value": {
+          "title": "Current Value",
+          "type": "string"
+        },
+        "changed_at": {
+          "description": "ISO-8601 timestamp",
+          "title": "Changed At",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/EventSourceType"
+        }
+      },
+      "required": [
+        "step_id",
+        "field_name",
+        "current_value",
+        "changed_at",
+        "source_type"
+      ],
+      "title": "StateChange",
+      "type": "object"
+    },
+    "StatusEvent": {
+      "description": "Individual timestamped workflow status event with explicit provenance.",
+      "properties": {
+        "status_event_id": {
+          "title": "Status Event Id",
+          "type": "string"
+        },
+        "step_id": {
+          "description": "Step ID or 'workflow_level' for overall plan status",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "status": {
+          "description": "Status value (e.g. ready, in_progress, submission_attempted, confirmed)",
+          "title": "Status",
+          "type": "string"
+        },
+        "observed_at": {
+          "description": "ISO-8601 timestamp of observation",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/EventSourceType",
+          "description": "Explicit provenance source"
+        },
+        "source_reference": {
+          "description": "Step/result/URL reference for traceability",
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "confidence_label": {
+          "default": "verified",
+          "description": "verified, user_reported, or unconfirmed",
+          "title": "Confidence Label",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Non-secret detail note",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "status",
+        "observed_at",
+        "source_type",
+        "source_reference"
+      ],
+      "title": "StatusEvent",
+      "type": "object"
+    },
+    "StepMonitoringStatus": {
+      "description": "Current per-step monitoring status record.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "current_status": {
+          "description": "Current validated status for this step",
+          "title": "Current Status",
+          "type": "string"
+        },
+        "last_updated_at": {
+          "description": "ISO-8601 timestamp of last update",
+          "title": "Last Updated At",
+          "type": "string"
+        },
+        "last_source_type": {
+          "$ref": "#/$defs/EventSourceType",
+          "description": "Source of last update"
+        },
+        "last_event_id": {
+          "description": "ID of corresponding StatusEvent",
+          "title": "Last Event Id",
+          "type": "string"
+        },
+        "blocking_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Blocking reason if blocked",
+          "title": "Blocking Reason"
+        }
+      },
+      "required": [
+        "step_id",
+        "current_status",
+        "last_updated_at",
+        "last_source_type",
+        "last_event_id"
+      ],
+      "title": "StepMonitoringStatus",
+      "type": "object"
+    }
+  },
+  "description": "Canonical output contract of the Monitoring & Update Agent.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "monitoring_request_id": {
+      "description": "Monitoring request ID",
+      "title": "Monitoring Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Originating Intent request_id",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "plan_id": {
+      "description": "Workflow plan ID monitored",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "plan_version": {
+      "minimum": 1,
+      "title": "Plan Version",
+      "type": "integer"
+    },
+    "execution_request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Execution Request Id"
+    },
+    "monitoring_status": {
+      "$ref": "#/$defs/MonitoringStatus",
+      "description": "Top-level monitoring status"
+    },
+    "workflow_status": {
+      "description": "Validated summary status of overall workflow",
+      "title": "Workflow Status",
+      "type": "string"
+    },
+    "step_statuses": {
+      "items": {
+        "$ref": "#/$defs/StepMonitoringStatus"
+      },
+      "title": "Step Statuses",
+      "type": "array"
+    },
+    "status_events": {
+      "items": {
+        "$ref": "#/$defs/StatusEvent"
+      },
+      "title": "Status Events",
+      "type": "array"
+    },
+    "changes_detected": {
+      "items": {
+        "$ref": "#/$defs/StateChange"
+      },
+      "title": "Changes Detected",
+      "type": "array"
+    },
+    "pending_actions": {
+      "items": {
+        "$ref": "#/$defs/PendingAction"
+      },
+      "title": "Pending Actions",
+      "type": "array"
+    },
+    "manual_follow_up": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ManualFollowUpInstruction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "reminders": {
+      "items": {
+        "$ref": "#/$defs/LocalReminder"
+      },
+      "title": "Reminders",
+      "type": "array"
+    },
+    "portal_observed_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Nullable status ONLY when directly observed from official allowlisted page",
+      "title": "Portal Observed Status"
+    },
+    "user_reported_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Nullable separately labeled user report",
+      "title": "User Reported Status"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "updated_at": {
+      "description": "ISO-8601 timestamp with timezone",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "monitoring_request_id",
+    "request_id",
+    "plan_id",
+    "plan_version",
+    "monitoring_status",
+    "workflow_status",
+    "updated_at"
+  ],
+  "title": "MonitoringResult",
+  "type": "object"
+}

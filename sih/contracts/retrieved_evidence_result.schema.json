@@ -1,0 +1,422 @@
+{
+  "$defs": {
+    "EvidenceRecord": {
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "source_title": {
+          "title": "Source Title",
+          "type": "string"
+        },
+        "source_url": {
+          "title": "Source Url",
+          "type": "string"
+        },
+        "source_host": {
+          "title": "Source Host",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "retrieved_at": {
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "published_or_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published Or Updated At"
+        },
+        "section_heading": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Heading"
+        },
+        "excerpt": {
+          "description": "Bounded verbatim excerpt; not a full page",
+          "title": "Excerpt",
+          "type": "string"
+        },
+        "content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Hash"
+        },
+        "relevance_score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relevance Score"
+        },
+        "supports": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supports",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "source_title",
+        "source_url",
+        "source_host",
+        "source_type",
+        "retrieved_at",
+        "excerpt"
+      ],
+      "title": "EvidenceRecord",
+      "type": "object"
+    },
+    "ProcessingMode": {
+      "enum": [
+        "deterministic",
+        "ollama",
+        "mixed"
+      ],
+      "title": "ProcessingMode",
+      "type": "string"
+    },
+    "RequirementCandidate": {
+      "properties": {
+        "requirement_id": {
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "jurisdiction_scope": {
+          "default": "unknown",
+          "title": "Jurisdiction Scope",
+          "type": "string"
+        },
+        "source_status": {
+          "$ref": "#/$defs/RequirementSourceStatus",
+          "default": "official_date_unclear"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "statement",
+        "evidence_ids"
+      ],
+      "title": "RequirementCandidate",
+      "type": "object"
+    },
+    "RequirementSourceStatus": {
+      "enum": [
+        "official_current_checked",
+        "official_date_unclear",
+        "conflicting_official_sources"
+      ],
+      "title": "RequirementSourceStatus",
+      "type": "string"
+    },
+    "RetrievalStatus": {
+      "enum": [
+        "completed",
+        "partial",
+        "no_evidence",
+        "blocked",
+        "failed"
+      ],
+      "title": "RetrievalStatus",
+      "type": "string"
+    },
+    "SearchQuery": {
+      "properties": {
+        "query": {
+          "description": "Generic official-source query; no personal values",
+          "title": "Query",
+          "type": "string"
+        },
+        "basis": {
+          "description": "Which intent fields produced this query",
+          "title": "Basis",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query",
+        "basis"
+      ],
+      "title": "SearchQuery",
+      "type": "object"
+    },
+    "SourceCheck": {
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "host": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Host"
+        },
+        "status": {
+          "$ref": "#/$defs/SourceCheckStatus"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved At"
+        },
+        "http_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Http Status"
+        },
+        "warning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Warning"
+        }
+      },
+      "required": [
+        "url",
+        "status"
+      ],
+      "title": "SourceCheck",
+      "type": "object"
+    },
+    "SourceCheckStatus": {
+      "enum": [
+        "fetched",
+        "blocked",
+        "redirect_rejected",
+        "parse_failed",
+        "timeout",
+        "skipped",
+        "unsupported"
+      ],
+      "title": "SourceCheckStatus",
+      "type": "string"
+    },
+    "SourceType": {
+      "enum": [
+        "official_webpage",
+        "official_pdf",
+        "official_download"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "TaskType": {
+      "enum": [
+        "register",
+        "apply",
+        "renew",
+        "reissue",
+        "update",
+        "track",
+        "understand_requirements",
+        "other",
+        "unknown"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "description": "Canonical handoff to Workflow Planning together with intent and profile context.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "intent_request_id": {
+      "title": "Intent Request Id",
+      "type": "string"
+    },
+    "profile_context_request_id": {
+      "title": "Profile Context Request Id",
+      "type": "string"
+    },
+    "service_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Service Name"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Jurisdiction"
+    },
+    "retrieval_status": {
+      "$ref": "#/$defs/RetrievalStatus"
+    },
+    "search_queries": {
+      "items": {
+        "$ref": "#/$defs/SearchQuery"
+      },
+      "title": "Search Queries",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRecord"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "requirements_found": {
+      "items": {
+        "$ref": "#/$defs/RequirementCandidate"
+      },
+      "title": "Requirements Found",
+      "type": "array"
+    },
+    "unanswered_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unanswered Questions",
+      "type": "array"
+    },
+    "sources_checked": {
+      "items": {
+        "$ref": "#/$defs/SourceCheck"
+      },
+      "title": "Sources Checked",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "processing_mode": {
+      "$ref": "#/$defs/ProcessingMode",
+      "default": "deterministic"
+    }
+  },
+  "required": [
+    "request_id",
+    "intent_request_id",
+    "profile_context_request_id",
+    "task_type",
+    "retrieval_status"
+  ],
+  "title": "RetrievedEvidenceResult",
+  "type": "object"
+}

@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.Python
+.DS_Store
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+data/profile.json
+data/*.tmp
+data/retrieval_cache/
+data/plans/
+chroma/
+*.chroma

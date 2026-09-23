@@ -1,0 +1,380 @@
+{
+  "$defs": {
+    "CitizenNextStep": {
+      "description": "One clear immediate next step for the citizen.",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "action_type": {
+          "description": "user_action, explicit_approval, manual_portal_check, or review",
+          "title": "Action Type",
+          "type": "string"
+        },
+        "required_user_phrase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact phrase required if approval step",
+          "title": "Required User Phrase"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "action_type"
+      ],
+      "title": "CitizenNextStep",
+      "type": "object"
+    },
+    "CompletedActionRecord": {
+      "description": "Action that has been completed and verified.",
+      "properties": {
+        "action_title": {
+          "title": "Action Title",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "source_reference": {
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "completed_at": {
+          "title": "Completed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_title",
+        "status",
+        "source_reference",
+        "completed_at"
+      ],
+      "title": "CompletedActionRecord",
+      "type": "object"
+    },
+    "EvidenceReferenceMap": {
+      "description": "Mapping connecting factual response statements to evidence IDs or events.",
+      "properties": {
+        "claim_statement": {
+          "title": "Claim Statement",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "source_type": {
+          "description": "official_evidence, plan, validation, execution, or monitoring",
+          "title": "Source Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_statement",
+        "source_type"
+      ],
+      "title": "EvidenceReferenceMap",
+      "type": "object"
+    },
+    "GenerationMode": {
+      "enum": [
+        "ollama",
+        "deterministic_fallback"
+      ],
+      "title": "GenerationMode",
+      "type": "string"
+    },
+    "ImportantDetailRecord": {
+      "description": "Key ground detail (fee, deadline, reference ID) with evidence citation.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "category": {
+          "description": "fee, deadline, appointment, or reference_id",
+          "title": "Category",
+          "type": "string"
+        },
+        "source_evidence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Evidence Id"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "category"
+      ],
+      "title": "ImportantDetailRecord",
+      "type": "object"
+    },
+    "MissingItemRecord": {
+      "description": "Missing unconfirmed fact or document blocking workflow.",
+      "properties": {
+        "item_key": {
+          "title": "Item Key",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "item_type": {
+          "description": "fact, document, or approval",
+          "title": "Item Type",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_key",
+        "description",
+        "item_type",
+        "status"
+      ],
+      "title": "MissingItemRecord",
+      "type": "object"
+    },
+    "OfficialLinkRecord": {
+      "description": "Allowlisted official portal link.",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "related_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "url"
+      ],
+      "title": "OfficialLinkRecord",
+      "type": "object"
+    },
+    "OverallStatus": {
+      "enum": [
+        "not_started",
+        "in_progress",
+        "action_required",
+        "blocked",
+        "uncertain",
+        "submitted",
+        "confirmed",
+        "failed",
+        "completed"
+      ],
+      "title": "OverallStatus",
+      "type": "string"
+    },
+    "PendingActionRecord": {
+      "description": "Outstanding action awaiting user or execution agent.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "action_title": {
+          "title": "Action Title",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "assigned_to": {
+          "title": "Assigned To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "action_title",
+        "reason",
+        "assigned_to"
+      ],
+      "title": "PendingActionRecord",
+      "type": "object"
+    }
+  },
+  "description": "Canonical output contract of the Response Generation Agent.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "response_request_id": {
+      "description": "Response request correlation ID",
+      "title": "Response Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Originating Intent request_id",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "plan_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Workflow plan ID",
+      "title": "Plan Id"
+    },
+    "headline": {
+      "description": "Short status headline",
+      "title": "Headline",
+      "type": "string"
+    },
+    "overall_status": {
+      "$ref": "#/$defs/OverallStatus",
+      "description": "Calculated overall workflow status"
+    },
+    "summary": {
+      "description": "1-3 plain-language sentences grounded in inputs",
+      "title": "Summary",
+      "type": "string"
+    },
+    "completed_actions": {
+      "items": {
+        "$ref": "#/$defs/CompletedActionRecord"
+      },
+      "title": "Completed Actions",
+      "type": "array"
+    },
+    "pending_actions": {
+      "items": {
+        "$ref": "#/$defs/PendingActionRecord"
+      },
+      "title": "Pending Actions",
+      "type": "array"
+    },
+    "citizen_next_step": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CitizenNextStep"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "missing_items": {
+      "items": {
+        "$ref": "#/$defs/MissingItemRecord"
+      },
+      "title": "Missing Items",
+      "type": "array"
+    },
+    "important_details": {
+      "items": {
+        "$ref": "#/$defs/ImportantDetailRecord"
+      },
+      "title": "Important Details",
+      "type": "array"
+    },
+    "official_links": {
+      "items": {
+        "$ref": "#/$defs/OfficialLinkRecord"
+      },
+      "title": "Official Links",
+      "type": "array"
+    },
+    "evidence_references": {
+      "items": {
+        "$ref": "#/$defs/EvidenceReferenceMap"
+      },
+      "title": "Evidence References",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "language": {
+      "description": "Selected response language",
+      "title": "Language",
+      "type": "string"
+    },
+    "formatted_markdown": {
+      "description": "Complete ready-to-display markdown response",
+      "title": "Formatted Markdown",
+      "type": "string"
+    },
+    "generated_at": {
+      "description": "ISO-8601 timestamp with timezone",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "generation_mode": {
+      "$ref": "#/$defs/GenerationMode",
+      "description": "ollama or deterministic_fallback"
+    }
+  },
+  "required": [
+    "response_request_id",
+    "request_id",
+    "headline",
+    "overall_status",
+    "summary",
+    "language",
+    "formatted_markdown",
+    "generated_at",
+    "generation_mode"
+  ],
+  "title": "CitizenResponse",
+  "type": "object"
+}

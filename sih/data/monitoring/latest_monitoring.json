@@ -1,0 +1,67 @@
+{
+  "contract_version": "1.0",
+  "monitoring_request_id": "demo-mon-req-001",
+  "request_id": "demo-passport-register-001",
+  "plan_id": "plan-demo-001",
+  "plan_version": 1,
+  "execution_request_id": "demo-exec-req-001",
+  "monitoring_status": "changed",
+  "workflow_status": "confirmed",
+  "step_statuses": [
+    {
+      "step_id": "review-official-requirements",
+      "current_status": "completed",
+      "last_updated_at": "2026-09-23T18:31:37+00:00",
+      "last_source_type": "plan",
+      "last_event_id": "evt-review-official-requirements-fed5468a",
+      "blocking_reason": null
+    },
+    {
+      "step_id": "user-controlled-portal-action",
+      "current_status": "confirmed",
+      "last_updated_at": "2026-09-23T18:31:37+00:00",
+      "last_source_type": "user_reported",
+      "last_event_id": "evt-user-controlled-portal-action-bbdadfca",
+      "blocking_reason": null
+    }
+  ],
+  "status_events": [
+    {
+      "status_event_id": "evt-review-official-requirements-fed5468a",
+      "step_id": "review-official-requirements",
+      "status": "completed",
+      "observed_at": "2026-09-23T18:31:37+00:00",
+      "source_type": "plan",
+      "source_reference": "plan:plan-demo-001",
+      "confidence_label": "verified",
+      "notes": "Step title: Review official requirements"
+    },
+    {
+      "status_event_id": "evt-user-controlled-portal-action-bbdadfca",
+      "step_id": "user-controlled-portal-action",
+      "status": "confirmed",
+      "observed_at": "2026-09-23T18:31:37+00:00",
+      "source_type": "user_reported",
+      "source_reference": "user_update:user-upd-d2dd8a2f",
+      "confidence_label": "user_reported",
+      "notes": "Step title: User-controlled Passport Seva registration"
+    }
+  ],
+  "changes_detected": [
+    {
+      "step_id": "user-controlled-portal-action",
+      "field_name": "status",
+      "previous_value": "in_progress",
+      "current_value": "confirmed",
+      "changed_at": "2026-09-23T18:31:37+00:00",
+      "source_type": "user_reported"
+    }
+  ],
+  "pending_actions": [],
+  "manual_follow_up": null,
+  "reminders": [],
+  "portal_observed_status": null,
+  "user_reported_status": "confirmed",
+  "warnings": [],
+  "updated_at": "2026-09-23T18:31:37+00:00"
+}

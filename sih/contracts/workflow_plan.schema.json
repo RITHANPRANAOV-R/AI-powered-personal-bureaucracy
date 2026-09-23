@@ -1,0 +1,452 @@
+{
+  "$defs": {
+    "EvidenceGap": {
+      "properties": {
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "related_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Step Ids",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "title": "EvidenceGap",
+      "type": "object"
+    },
+    "EvidenceSupportStatus": {
+      "enum": [
+        "supported",
+        "partial",
+        "conflicting",
+        "none"
+      ],
+      "title": "EvidenceSupportStatus",
+      "type": "string"
+    },
+    "HumanApprovalPoint": {
+      "properties": {
+        "approval_id": {
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "what_user_must_confirm": {
+          "title": "What User Must Confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "step_id",
+        "reason",
+        "what_user_must_confirm"
+      ],
+      "title": "HumanApprovalPoint",
+      "type": "object"
+    },
+    "MissingInformationItem": {
+      "properties": {
+        "fact_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fact Key"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "source": {
+          "description": "intent, profile, evidence, or planning",
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "description": "unknown, unconfirmed, blocking, or clarification",
+          "title": "Status",
+          "type": "string"
+        },
+        "blocks_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocks Step Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "source",
+        "status"
+      ],
+      "title": "MissingInformationItem",
+      "type": "object"
+    },
+    "PlanStatus": {
+      "enum": [
+        "ready",
+        "needs_user_input",
+        "blocked",
+        "partial",
+        "failed"
+      ],
+      "title": "PlanStatus",
+      "type": "string"
+    },
+    "PlanStep": {
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "step_type": {
+          "$ref": "#/$defs/StepType"
+        },
+        "status": {
+          "$ref": "#/$defs/StepStatus",
+          "default": "not_started"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "required_fact_keys": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Fact Keys",
+          "type": "array"
+        },
+        "required_document_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Document Refs",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "evidence_status": {
+          "$ref": "#/$defs/EvidenceSupportStatus",
+          "default": "none"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "blocking_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Blocking Reason"
+        },
+        "requires_user_action": {
+          "default": false,
+          "title": "Requires User Action",
+          "type": "boolean"
+        },
+        "requires_explicit_approval": {
+          "default": false,
+          "title": "Requires Explicit Approval",
+          "type": "boolean"
+        },
+        "consequential_action": {
+          "default": false,
+          "title": "Consequential Action",
+          "type": "boolean"
+        },
+        "human_review_note": {
+          "default": "",
+          "title": "Human Review Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "sequence",
+        "title",
+        "description",
+        "step_type"
+      ],
+      "title": "PlanStep",
+      "type": "object"
+    },
+    "PlanningMode": {
+      "enum": [
+        "ollama",
+        "deterministic_fallback"
+      ],
+      "title": "PlanningMode",
+      "type": "string"
+    },
+    "StepStatus": {
+      "enum": [
+        "not_started",
+        "ready",
+        "needs_user_input",
+        "blocked",
+        "in_progress",
+        "completed",
+        "skipped"
+      ],
+      "title": "StepStatus",
+      "type": "string"
+    },
+    "StepType": {
+      "enum": [
+        "verify_information",
+        "prepare_document",
+        "review_requirements",
+        "prepare_form",
+        "manual_user_action",
+        "human_approval",
+        "track_status",
+        "verify_completion",
+        "other"
+      ],
+      "title": "StepType",
+      "type": "string"
+    },
+    "TaskType": {
+      "enum": [
+        "register",
+        "apply",
+        "renew",
+        "reissue",
+        "update",
+        "track",
+        "understand_requirements",
+        "other",
+        "unknown"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    },
+    "UnresolvedConflict": {
+      "properties": {
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "affected_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Step Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic",
+        "statement"
+      ],
+      "title": "UnresolvedConflict",
+      "type": "object"
+    }
+  },
+  "description": "Canonical handoff to Compliance, Execution, Monitoring, and Response agents.",
+  "properties": {
+    "contract_version": {
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "planning_request_id": {
+      "title": "Planning Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "Originating IntentResult.request_id",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "service_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Service Name"
+    },
+    "document_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Document Type"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Jurisdiction"
+    },
+    "language": {
+      "title": "Language",
+      "type": "string"
+    },
+    "plan_id": {
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "plan_version": {
+      "minimum": 1,
+      "title": "Plan Version",
+      "type": "integer"
+    },
+    "plan_status": {
+      "$ref": "#/$defs/PlanStatus"
+    },
+    "goal_summary": {
+      "title": "Goal Summary",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/PlanStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "missing_information": {
+      "items": {
+        "$ref": "#/$defs/MissingInformationItem"
+      },
+      "title": "Missing Information",
+      "type": "array"
+    },
+    "unresolved_conflicts": {
+      "items": {
+        "$ref": "#/$defs/UnresolvedConflict"
+      },
+      "title": "Unresolved Conflicts",
+      "type": "array"
+    },
+    "evidence_gaps": {
+      "items": {
+        "$ref": "#/$defs/EvidenceGap"
+      },
+      "title": "Evidence Gaps",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "human_approval_points": {
+      "items": {
+        "$ref": "#/$defs/HumanApprovalPoint"
+      },
+      "title": "Human Approval Points",
+      "type": "array"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "planning_mode": {
+      "$ref": "#/$defs/PlanningMode"
+    }
+  },
+  "required": [
+    "planning_request_id",
+    "request_id",
+    "task_type",
+    "language",
+    "plan_id",
+    "plan_version",
+    "plan_status",
+    "goal_summary",
+    "created_at",
+    "planning_mode"
+  ],
+  "title": "WorkflowPlan",
+  "type": "object"
+}

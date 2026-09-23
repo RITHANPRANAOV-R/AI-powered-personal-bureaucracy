@@ -1,0 +1,30 @@
+{
+  "contract_version": "1.0",
+  "updated_at": "2026-01-01T00:00:00+00:00",
+  "facts": [
+    {
+      "key": "full_name",
+      "value": "Priya Nair",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:full_name",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "language_preference",
+      "value": "English",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:language_preference",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    }
+  ]
+}
