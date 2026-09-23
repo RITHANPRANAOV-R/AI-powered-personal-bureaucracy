@@ -179,6 +179,26 @@ class SourceRegistry:
                 trust_level=1.0,
                 freshness_policy="live",
             ),
+            Source(
+                source_id="src_uidai_citizen_charter_pdf",
+                authority="UIDAI",
+                domain="aadhaar",
+                url="https://backend.uidai.gov.in/get/files/media/document/2026-05/Citizen_Charter_Jan24.pdf",
+                document_title="Citizen's Charter for UIDAI (Jan 2024)",
+                source_type=SourceType.OFFICIAL_PDF,
+                trust_level=1.0,
+                freshness_policy="indexed",
+            ),
+            Source(
+                source_id="src_uidai_appointments",
+                authority="UIDAI",
+                domain="aadhaar",
+                url="https://appointments.uidai.gov.in/",
+                document_title="Aadhaar Seva Kendra Appointment Booking",
+                source_type=SourceType.LIVE_WEBPAGE,
+                trust_level=1.0,
+                freshness_policy="live",
+            ),
         ]
 
         for source in uidai_sources:
