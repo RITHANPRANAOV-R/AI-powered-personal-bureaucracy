@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
 from agents.orchestration.intent_understanding.schemas import ExtractedEntity, IntentRequest, IntentResult, MissingInformation
-from agents.orchestration.monitoring.schemas import ChangeDelta, SessionState
+from agents.orchestration.intent_understanding.service import IntentUnderstandingService
+from agents.orchestration.monitoring.schemas import ChangeDelta, MonitoringApplicationInput, MonitoringEvent, SessionState
 from agents.orchestration.monitoring.service import MonitoringService
 
 
@@ -258,6 +259,194 @@ def test_state_progression_for_address_then_mobile_number():
     assert result_2.updated_state.update_type == "mobile_number"
     assert any(change.field_name == "update_type" and change.change_type == "intent_replaced" for change in result_2.changes)
     assert any(change.change_type == "intent_replaced" for change in result_2.events)
+
+
+def test_monitoring_application_input_contract():
+    timestamp = datetime.now(timezone.utc)
+    deadline = timestamp.replace(second=0, microsecond=0)
+    payload = MonitoringApplicationInput(
+        application_id="app-42",
+        service_id="svc-42",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=timestamp,
+        required_action="Upload proof of address.",
+        pending_action="Awaiting address proof review.",
+        deadline=deadline,
+        source="portal",
+        event_type="status_changed",
+        severity="medium",
+        priority="normal",
+        detected_at=timestamp,
+        metadata={"request_id": "req-42", "retry": 0},
+    )
+
+    assert payload.application_id == "app-42"
+    assert payload.service_id == "svc-42"
+    assert payload.current_status == "pending_document"
+    assert payload.previous_status == "new"
+    assert payload.required_action == "Upload proof of address."
+    assert payload.deadline == deadline
+    assert payload.metadata["request_id"] == "req-42"
+
+
+def test_monitoring_event_contract():
+    detected_at = datetime.now(timezone.utc)
+    event = MonitoringEvent(
+        application_id="app-99",
+        service_type="aadhaar_update",
+        current_status="in_progress",
+        previous_status="pending_document",
+        timestamp=detected_at,
+        required_action="Review submitted document.",
+        pending_action="Awaiting verification.",
+        deadline=detected_at,
+        source="agent",
+        event_type="document_received",
+        severity="high",
+        priority="high",
+        detected_at=detected_at,
+        metadata={"actor": "monitor"},
+    )
+
+    assert event.event_type == "document_received"
+    assert event.severity == "high"
+    assert event.priority == "high"
+    assert event.metadata["actor"] == "monitor"
+
+
+def test_detect_monitoring_events_for_status_and_action_changes():
+    initial = MonitoringApplicationInput(
+        application_id="app-100",
+        service_id="svc-100",
+        service_type="aadhaar_update",
+        current_status="new",
+        previous_status=None,
+        timestamp=datetime.now(timezone.utc),
+        required_action=None,
+        pending_action="Waiting for applicant action.",
+        source="portal",
+        metadata={"stage": "init"},
+    )
+    document_required = MonitoringApplicationInput(
+        application_id="app-100",
+        service_id="svc-100",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=datetime.now(timezone.utc),
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        source="portal",
+        metadata={"stage": "document"},
+    )
+    blocked = MonitoringApplicationInput(
+        application_id="app-100",
+        service_id="svc-100",
+        service_type="aadhaar_update",
+        current_status="workflow_failed",
+        previous_status="pending_document",
+        timestamp=datetime.now(timezone.utc),
+        required_action="Correct the Aadhaar name mismatch.",
+        pending_action="Verification blocked pending correction.",
+        source="portal",
+        metadata={"stage": "correction"},
+    )
+    completed = MonitoringApplicationInput(
+        application_id="app-100",
+        service_id="svc-100",
+        service_type="aadhaar_update",
+        current_status="completed",
+        previous_status="workflow_failed",
+        timestamp=datetime.now(timezone.utc),
+        required_action=None,
+        pending_action="Application completed successfully.",
+        source="portal",
+        metadata={"stage": "completed"},
+    )
+
+    event_sequence = []
+    for previous, current in [(initial, document_required), (document_required, blocked), (blocked, completed)]:
+        event_sequence.extend(MonitoringService().detect_events(previous, current))
+
+    event_types = {event.event_type for event in event_sequence}
+    assert {"status_changed", "required_action_detected", "document_required", "correction_required", "workflow_blocked", "completed"}.issubset(event_types)
+
+
+def test_detect_monitoring_events_unchanged_state():
+    payload = MonitoringApplicationInput(
+        application_id="app-101",
+        service_id="svc-101",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=datetime.now(timezone.utc),
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        source="portal",
+        metadata={"stage": "document"},
+    )
+
+    assert MonitoringService().detect_events(payload, payload) == []
+
+
+def test_end_to_end_aadhaar_update_and_status_flow():
+    service = IntentUnderstandingService()
+    session_id = "session-e2e-1"
+    previous_state = None
+
+    message_1 = IntentRequest(session_id=session_id, user_message="I want to update my Aadhaar address.")
+    intent_1 = service.process(message_1)
+    assert intent_1.intent_type == "update_request"
+    assert intent_1.update_type == "address"
+    assert any(item.field_name == "new_address" for item in intent_1.missing_information)
+
+    monitoring_1 = MonitoringService().process(previous_state, intent_1)
+    previous_state = monitoring_1.updated_state
+    assert previous_state.update_type == "address"
+    assert any(item.field_name == "new_address" for item in previous_state.missing_information)
+
+    message_2 = IntentRequest(
+        session_id=session_id,
+        user_message="My new address is Coimbatore.",
+        current_session_state=previous_state.model_dump(),
+    )
+    intent_2 = service.process(message_2)
+    assert any(entity.entity_type == "address" and entity.value.lower() == "coimbatore" for entity in intent_2.entities)
+    monitoring_2 = MonitoringService().process(previous_state, intent_2)
+    previous_state = monitoring_2.updated_state
+    assert previous_state.update_type == "address"
+    assert any(change.change_type == "missing_information_resolved" for change in monitoring_2.changes)
+    assert not any(item.field_name == "new_address" for item in previous_state.missing_information)
+
+    message_3 = IntentRequest(
+        session_id=session_id,
+        user_message="Actually, I want to change my mobile number.",
+        current_session_state=previous_state.model_dump(),
+    )
+    intent_3 = service.process(message_3)
+    assert intent_3.intent_type == "update_request"
+    assert intent_3.update_type == "mobile_number"
+    monitoring_3 = MonitoringService().process(previous_state, intent_3)
+    previous_state = monitoring_3.updated_state
+    assert previous_state.update_type == "mobile_number"
+    assert any(change.field_name == "update_type" and change.change_type == "intent_replaced" for change in monitoring_3.changes)
+
+    status_message_1 = IntentRequest(session_id=session_id, user_message="I want to check my Aadhaar update status.")
+    status_intent_1 = service.process(status_message_1)
+    assert status_intent_1.intent_type == "status_inquiry"
+    assert status_intent_1.update_type is None
+
+    status_message_2 = IntentRequest(
+        session_id=session_id,
+        user_message="I updated my address last week, what is the status?",
+        current_session_state=previous_state.model_dump(),
+    )
+    status_intent_2 = service.process(status_message_2)
+    assert status_intent_2.intent_type == "status_inquiry"
+    assert status_intent_2.update_type is None
+    assert status_intent_2.summary.lower().startswith("user wants to check")
 
 
 def test_public_monitoring_contract_for_downstream_state_consumers():

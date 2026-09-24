@@ -47,7 +47,45 @@ class SessionState(BaseModel):
     change_history: list[ChangeDelta] = Field(default_factory=list)
 
 
+class MonitoringApplicationInput(BaseModel):
+    application_id: str = Field(min_length=1)
+    service_id: str = Field(min_length=1)
+    service_type: str = Field(min_length=1)
+    current_status: str = Field(min_length=1)
+    previous_status: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    required_action: Optional[str] = None
+    pending_action: Optional[str] = None
+    deadline: Optional[datetime] = None
+    source: str = Field(default="system", min_length=1)
+    event_type: str = Field(default="status_update", min_length=1)
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    priority: Literal["low", "normal", "high", "critical"] = "normal"
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MonitoringEvent(BaseModel):
+    application_id: str = Field(min_length=1)
+    service_id: Optional[str] = None
+    service_type: str = Field(min_length=1)
+    current_status: str = Field(min_length=1)
+    previous_status: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    required_action: Optional[str] = None
+    pending_action: Optional[str] = None
+    deadline: Optional[datetime] = None
+    source: str = Field(default="system", min_length=1)
+    event_type: str = Field(default="status_update", min_length=1)
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    priority: Literal["low", "normal", "high", "critical"] = "normal"
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 __all__ = [
     "ChangeDelta",
+    "MonitoringApplicationInput",
+    "MonitoringEvent",
     "SessionState",
 ]
