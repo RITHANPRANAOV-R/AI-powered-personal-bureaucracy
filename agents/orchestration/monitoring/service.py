@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from agents.orchestration.intent_understanding.schemas import IntentClassificationResult
 from agents.orchestration.monitoring.diff_detector import detect_changes
@@ -97,6 +98,53 @@ class MonitoringService:
             metadata={"reason": reason, **(metadata or {})},
         )
 
+    @staticmethod
+    def _status_is_reliable(status: str | None) -> bool:
+        if status is None:
+            return False
+        value = status.strip().lower()
+        if not value:
+            return False
+        return value not in {"unknown", "unavailable", "not_available", "n/a", "na", "none", "status_unavailable"}
+
+    @staticmethod
+    def _deadline_approaching(current: MonitoringApplicationInput) -> bool:
+        deadline = current.deadline
+        if deadline is None:
+            return False
+        if deadline <= current.timestamp:
+            return False
+        return deadline - current.timestamp <= timedelta(days=3)
+
+    @staticmethod
+    def _deadline_missed(current: MonitoringApplicationInput) -> bool:
+        deadline = current.deadline
+        if deadline is None:
+            return False
+        return current.timestamp >= deadline
+
+    @staticmethod
+    def _appointment_approaching(current: MonitoringApplicationInput) -> bool:
+        deadline = current.deadline
+        if deadline is None:
+            return False
+        if deadline <= current.timestamp:
+            return False
+        if current.current_status not in {"appointment_scheduled", "appointment"}:
+            return False
+        return deadline - current.timestamp <= timedelta(days=1)
+
+    @staticmethod
+    def _processing_delay(previous: MonitoringApplicationInput | None, current: MonitoringApplicationInput) -> bool:
+        if previous is None:
+            return False
+        if current.current_status != "processing":
+            return False
+        if previous.current_status != "processing":
+            return False
+        elapsed = current.timestamp - previous.timestamp
+        return elapsed >= timedelta(days=3)
+
     @classmethod
     def detect_events(
         cls,
@@ -104,6 +152,9 @@ class MonitoringService:
         current: MonitoringApplicationInput,
     ) -> list[MonitoringEvent]:
         if current is None:
+            return []
+
+        if not cls._status_is_reliable(current.current_status):
             return []
 
         if previous is None:
@@ -138,6 +189,15 @@ class MonitoringService:
             events.append(cls._emit_event(previous, current, "workflow_blocked", "Workflow is blocked or failed."))
         if cls._is_completed(current) and not cls._is_completed(previous):
             events.append(cls._emit_event(previous, current, "completed", "Application completed."))
+
+        if cls._deadline_approaching(current) and not cls._deadline_approaching(previous):
+            events.append(cls._emit_event(previous, current, "DEADLINE_APPROACHING", "Deadline is approaching.", severity="high"))
+        if cls._deadline_missed(current) and not cls._deadline_missed(previous):
+            events.append(cls._emit_event(previous, current, "DEADLINE_MISSED", "Deadline has been missed.", severity="high"))
+        if cls._appointment_approaching(current) and not cls._appointment_approaching(previous):
+            events.append(cls._emit_event(previous, current, "APPOINTMENT_APPROACHING", "Appointment deadline is approaching.", severity="medium"))
+        if cls._processing_delay(previous, current) and not cls._processing_delay(None, previous):
+            events.append(cls._emit_event(previous, current, "PROCESSING_DELAY", "Application processing has exceeded the normal window.", severity="medium"))
         return events
 
     def process(self, previous: SessionState | MonitoringApplicationInput | None, intent_result: IntentClassificationResult | MonitoringApplicationInput | None) -> MonitoringResult | list[MonitoringEvent]:

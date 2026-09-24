@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from agents.orchestration.intent_understanding.schemas import ExtractedEntity, IntentRequest, IntentResult, MissingInformation
 from agents.orchestration.intent_understanding.service import IntentUnderstandingService
@@ -386,6 +386,244 @@ def test_detect_monitoring_events_unchanged_state():
         pending_action="Awaiting document review.",
         source="portal",
         metadata={"stage": "document"},
+    )
+
+    assert MonitoringService().detect_events(payload, payload) == []
+
+
+def test_monitoring_end_to_end_action_required_event_without_notification():
+    now = datetime.now(timezone.utc)
+    processing = MonitoringApplicationInput(
+        application_id="app-300",
+        service_id="svc-300",
+        service_type="aadhaar_update",
+        current_status="PROCESSING",
+        previous_status="SUBMITTED",
+        timestamp=now - timedelta(hours=2),
+        required_action=None,
+        pending_action="Application is being processed.",
+        source="portal",
+        metadata={"stage": "processing"},
+    )
+    action_required = MonitoringApplicationInput(
+        application_id="app-300",
+        service_id="svc-300",
+        service_type="aadhaar_update",
+        current_status="ACTION_REQUIRED",
+        previous_status="PROCESSING",
+        timestamp=now,
+        required_action="Upload proof of address.",
+        pending_action="Awaiting address proof.",
+        source="portal",
+        metadata={"stage": "action_required"},
+    )
+
+    events = MonitoringService().detect_events(processing, action_required)
+    assert events
+
+    matching_event = next(
+        event for event in events
+        if event.event_type in {"status_changed", "required_action_detected"}
+    )
+    assert matching_event.previous_status == "PROCESSING"
+    assert matching_event.current_status == "ACTION_REQUIRED"
+    assert matching_event.required_action == "Upload proof of address."
+    assert matching_event.detected_at == action_required.detected_at
+    assert matching_event.source == "portal"
+    assert all("notification" not in str(event.metadata).lower() for event in events)
+    assert all("notification" not in str(event.event_type).lower() for event in events)
+
+
+def test_detect_missing_status_data_yields_no_event():
+    now = datetime.now(timezone.utc)
+    previous = MonitoringApplicationInput(
+        application_id="app-205",
+        service_id="svc-205",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=now - timedelta(days=1),
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        source="portal",
+        metadata={"stage": "document"},
+    )
+    current = MonitoringApplicationInput(
+        application_id="app-205",
+        service_id="svc-205",
+        service_type="aadhaar_update",
+        current_status="unknown",
+        previous_status="pending_document",
+        timestamp=now,
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        source="portal",
+        metadata={"status": "unavailable"},
+    )
+
+    assert MonitoringService().detect_events(previous, current) == []
+
+
+def test_detect_unavailable_status_data_yields_no_event():
+    now = datetime.now(timezone.utc)
+    payload = MonitoringApplicationInput(
+        application_id="app-206",
+        service_id="svc-206",
+        service_type="aadhaar_update",
+        current_status="unavailable",
+        previous_status="unknown",
+        timestamp=now,
+        required_action=None,
+        pending_action=None,
+        source="portal",
+        metadata={"status": "unavailable"},
+    )
+
+    assert MonitoringService().detect_events(None, payload) == []
+
+
+def test_detect_deadline_approaching_event():
+    now = datetime.now(timezone.utc)
+    previous = MonitoringApplicationInput(
+        application_id="app-200",
+        service_id="svc-200",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=now - timedelta(days=1),
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        source="portal",
+        metadata={"stage": "document"},
+    )
+    current = MonitoringApplicationInput(
+        application_id="app-200",
+        service_id="svc-200",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=now,
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        deadline=now + timedelta(days=2),
+        source="portal",
+        metadata={"stage": "document"},
+    )
+
+    events = MonitoringService().detect_events(previous, current)
+    assert any(event.event_type == "DEADLINE_APPROACHING" for event in events)
+
+
+def test_detect_deadline_missed_event():
+    now = datetime.now(timezone.utc)
+    previous = MonitoringApplicationInput(
+        application_id="app-201",
+        service_id="svc-201",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="new",
+        timestamp=now - timedelta(days=3),
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        deadline=now - timedelta(days=1),
+        source="portal",
+        metadata={"stage": "document"},
+    )
+    current = MonitoringApplicationInput(
+        application_id="app-201",
+        service_id="svc-201",
+        service_type="aadhaar_update",
+        current_status="pending_document",
+        previous_status="pending_document",
+        timestamp=now,
+        required_action="Upload proof of address.",
+        pending_action="Awaiting document review.",
+        deadline=now - timedelta(days=1),
+        source="portal",
+        metadata={"stage": "document"},
+    )
+
+    events = MonitoringService().detect_events(previous, current)
+    assert any(event.event_type == "DEADLINE_MISSED" for event in events)
+
+
+def test_detect_appointment_approaching_event():
+    now = datetime.now(timezone.utc)
+    previous = MonitoringApplicationInput(
+        application_id="app-202",
+        service_id="svc-202",
+        service_type="aadhaar_update",
+        current_status="appointment_scheduled",
+        previous_status="in_progress",
+        timestamp=now - timedelta(days=1),
+        required_action="Attend the Aadhaar appointment.",
+        pending_action="Appointment scheduled for verification.",
+        source="portal",
+        metadata={"stage": "appointment"},
+    )
+    current = MonitoringApplicationInput(
+        application_id="app-202",
+        service_id="svc-202",
+        service_type="aadhaar_update",
+        current_status="appointment_scheduled",
+        previous_status="in_progress",
+        timestamp=now,
+        required_action="Attend the Aadhaar appointment.",
+        pending_action="Appointment scheduled for verification.",
+        deadline=now + timedelta(hours=6),
+        source="portal",
+        metadata={"stage": "appointment"},
+    )
+
+    events = MonitoringService().detect_events(previous, current)
+    assert any(event.event_type == "APPOINTMENT_APPROACHING" for event in events)
+
+
+def test_detect_processing_delay_event():
+    now = datetime.now(timezone.utc)
+    previous = MonitoringApplicationInput(
+        application_id="app-203",
+        service_id="svc-203",
+        service_type="aadhaar_update",
+        current_status="processing",
+        previous_status="processing",
+        timestamp=now - timedelta(days=3),
+        required_action=None,
+        pending_action="Application is being processed.",
+        source="portal",
+        metadata={"stage": "processing"},
+    )
+    current = MonitoringApplicationInput(
+        application_id="app-203",
+        service_id="svc-203",
+        service_type="aadhaar_update",
+        current_status="processing",
+        previous_status="processing",
+        timestamp=now,
+        required_action=None,
+        pending_action="Application is being processed.",
+        source="portal",
+        metadata={"stage": "processing"},
+    )
+
+    events = MonitoringService().detect_events(previous, current)
+    assert any(event.event_type == "PROCESSING_DELAY" for event in events)
+
+
+def test_detect_deadline_events_unchanged_state_no_emission():
+    now = datetime.now(timezone.utc)
+    payload = MonitoringApplicationInput(
+        application_id="app-204",
+        service_id="svc-204",
+        service_type="aadhaar_update",
+        current_status="processing",
+        previous_status="processing",
+        timestamp=now,
+        required_action=None,
+        pending_action="Application is being processed.",
+        deadline=now + timedelta(days=1),
+        source="portal",
+        metadata={"stage": "processing"},
     )
 
     assert MonitoringService().detect_events(payload, payload) == []
