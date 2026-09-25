@@ -1,0 +1,174 @@
+{
+  "email_check_page": {
+    "url": "https://rtionline.gov.in/request/request_email_check.php?pageid=8f14e45fceea167a5a36dedd4bea2543",
+    "title": "RTI Online :: Online RTI Information System"
+  },
+  "email_check_controls": [
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/logo/indian-emblam-white.png"
+    },
+    {
+      "tag": "select",
+      "id": "lan",
+      "name": "lan",
+      "type": "",
+      "value": "",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "hndbaseurl",
+      "name": "hndbaseurl",
+      "type": "hidden",
+      "value": "https://rtionline.gov.in/reque",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "hndactionurl",
+      "name": "hndactionurl",
+      "type": "hidden",
+      "value": "https://rtionline.gov.in/layou",
+      "src": ""
+    },
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/new_blink.gif"
+    },
+    {
+      "tag": "input",
+      "id": "Email",
+      "name": "Email",
+      "type": "text",
+      "value": "",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "cell",
+      "name": "cell",
+      "type": "password",
+      "value": "",
+      "src": ""
+    },
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/questionToolTip.png"
+    },
+    {
+      "tag": "img",
+      "id": "captchaimg",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/captcha_code_file.php?rand=5239751"
+    },
+    {
+      "tag": "input",
+      "id": "6_letters_code",
+      "name": "6_letters_code",
+      "type": "text",
+      "value": "",
+      "src": ""
+    },
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/speaker-btn.png"
+    },
+    {
+      "tag": "input",
+      "id": "Status",
+      "name": "Submit",
+      "type": "submit",
+      "value": "Submit",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "name": "",
+      "type": "reset",
+      "value": "Reset",
+      "src": ""
+    }
+  ],
+  "request_form_page": {
+    "url": "https://rtionline.gov.in/index.php",
+    "title": "RTI Online :: Home | Submit RTI Request | Submit RTI First Appeal | View RTI Status | RTI FAQ"
+  },
+  "request_form_controls": [
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/logo/indian-emblam-white.png"
+    },
+    {
+      "tag": "select",
+      "id": "lan",
+      "name": "lan",
+      "type": "",
+      "value": "",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "hndbaseurl",
+      "name": "hndbaseurl",
+      "type": "hidden",
+      "value": "https://rtionline.gov.in/index",
+      "src": ""
+    },
+    {
+      "tag": "input",
+      "id": "hndactionurl",
+      "name": "hndactionurl",
+      "type": "hidden",
+      "value": "https://rtionline.gov.in/layou",
+      "src": ""
+    },
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/new_blink.gif"
+    },
+    {
+      "tag": "img",
+      "id": "wows1_1",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "../images/rti_lifecycle.jpg"
+    },
+    {
+      "tag": "img",
+      "id": "",
+      "name": "",
+      "type": "",
+      "value": "",
+      "src": "https://rtionline.gov.in/images/new_blink.gif"
+    }
+  ]
+}

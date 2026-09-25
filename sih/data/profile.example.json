@@ -1,6 +1,6 @@
 {
   "contract_version": "1.0",
-  "updated_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-25T03:59:05+00:00",
   "facts": [
     {
       "key": "full_name",
@@ -8,6 +8,78 @@
       "status": "user_confirmed",
       "source_type": "user",
       "source_ref": "profile:full_name",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "email",
+      "value": "hari0prak0@gmail.com",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:email",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "mobile",
+      "value": "9876543210",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:mobile",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "present_address",
+      "value": "123 Main Street, Adyar, Chennai, Tamil Nadu",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:present_address",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "state",
+      "value": "Tamil Nadu",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:state",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "gender",
+      "value": "Female",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:gender",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "rti_request_text",
+      "value": "Requesting information regarding public RTI application status under Section 6(1) of the RTI Act 2005.",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:rti_request_text",
       "extracted_at": "2026-01-01T00:00:00+00:00",
       "confidence": 1.0,
       "relevant_to": "Synthetic demo profile; not a real identity.",
@@ -23,6 +95,18 @@
       "extracted_at": "2026-01-01T00:00:00+00:00",
       "confidence": 1.0,
       "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "submit_button",
+      "value": "Submit",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:submit_button",
+      "extracted_at": "2026-09-25T03:59:05+00:00",
+      "confidence": 1.0,
+      "relevant_to": "User entered via interactive execution prompt",
       "sensitivity": "ordinary",
       "confirmed_by_user": true
     }

@@ -24,11 +24,10 @@ from agents.workflow_planning.schema import WorkflowPlan
 
 
 CONTRACT_VERSION = "1.0"
-DEFAULT_STARTING_URL = "https://www.passportindia.gov.in/psp/"
+DEFAULT_STARTING_URL = "https://rtionline.gov.in/guidelines.php?request"
 DEFAULT_ALLOWED_HOSTS = [
-    "passportindia.gov.in",
-    "www.passportindia.gov.in",
-    "services2.passportindia.gov.in",
+    "rtionline.gov.in",
+    "www.rtionline.gov.in",
 ]
 
 

@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional, Set
+from typing import Set
 
 from src.bureaucracy_agent.orchestrator.state import OneRunAuthorization
 
 
-UPFRONT_AUTHORIZATION_PHRASE = "AUTHORIZE PASSPORT SEVA REGISTRATION AND SUBMISSION"
-SUBMIT_APPROVAL_PHRASE = "SUBMIT PASSPORT SEVA REGISTRATION"
+UPFRONT_AUTHORIZATION_PHRASE = "AUTHORIZE RTI ONLINE SUBMISSION"
+SUBMIT_APPROVAL_PHRASE = "SUBMIT RTI ONLINE REQUEST"
 
 VALID_UPFRONT_PHRASES: Set[str] = {
     UPFRONT_AUTHORIZATION_PHRASE.upper(),
     SUBMIT_APPROVAL_PHRASE.upper(),
+    "AUTHORIZE PASSPORT SEVA REGISTRATION AND SUBMISSION",  # backward compatibility alias for test runs if any
 }
 
 
@@ -29,7 +30,7 @@ def create_one_run_authorization(input_phrase: str) -> OneRunAuthorization:
     is_valid = validate_upfront_phrase(input_phrase)
     return OneRunAuthorization(
         phrase=input_phrase.strip(),
-        scope="PASSPORT SEVA REGISTRATION AND SUBMISSION",
+        scope="RTI ONLINE SUBMISSION",
         authorized=is_valid,
         authorized_at=datetime.now(timezone.utc).isoformat() if is_valid else None,
     )

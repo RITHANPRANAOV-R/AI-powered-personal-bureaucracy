@@ -1783,6 +1783,95 @@ python -m agents.response_generation.cli --demo --language Tamil --json
 python -m agents.response_generation.schema
 ```
 
+---
+
+# 🤖 Orchestration Layer & Browser Portal Integration
+
+The Orchestration Layer (`src/bureaucracy_agent/orchestrator/`) and Portal Driver (`src/bureaucracy_agent/portal/`) coordinate the end-to-end RTI Online flow across all 8 agents.
+
+## 📊 Orchestrator State Diagram
+
+```mermaid
+flowchart TD
+    START([START]) --> INTENT[1. Intent Understanding]
+    INTENT -->|needs_clarification| PAUSED_INPUT[PAUSED_NEEDS_INPUT]
+    PAUSED_INPUT --> INTENT
+    INTENT --> USER_CONTEXT[2. User Context & Profile]
+    USER_CONTEXT --> RETRIEVAL[3. Information Retrieval]
+    RETRIEVAL --> PLANNING[4. Workflow Planning]
+    PLANNING --> COMPLIANCE_PRE[5. Compliance Validation Pre-Execution]
+    
+    COMPLIANCE_PRE -->|unconfirmed facts| PAUSED_CONSENT[PAUSED_FACT_CONSENT]
+    PAUSED_CONSENT --> COMPLIANCE_PRE
+    
+    COMPLIANCE_PRE -->|missing authorization| PAUSED_AUTH[PAUSED_NEEDS_AUTHORIZATION]
+    PAUSED_AUTH --> COMPLIANCE_PRE
+    
+    COMPLIANCE_PRE -->|readiness/blocker failure| STOP_BLOCKED[STOP_BLOCKED]
+    STOP_BLOCKED --> RESPONSE[8. Response Generation]
+    
+    COMPLIANCE_PRE -->|approved + gates pass| EXECUTION[6. Execution Stage - Visible Browser]
+    
+    EXECUTION -->|CAPTCHA/OTP/password| PAUSED_CAPTCHA[PAUSED_CAPTCHA]
+    PAUSED_CAPTCHA --> EXECUTION
+    
+    EXECUTION -->|Official Payment| PAUSED_PAYMENT[PAUSED_PAYMENT]
+    PAUSED_PAYMENT --> EXECUTION
+    
+    EXECUTION -->|failed/cancelled/blocked| RESPONSE
+    
+    EXECUTION -->|submitted / confirmation| COMPLIANCE_POST[5. Compliance Post-Execution]
+    COMPLIANCE_POST --> MONITORING[7. Monitoring Update]
+    MONITORING --> RESPONSE
+    RESPONSE --> END([END])
+```
+
+## 🏁 Terminal Workflow Statuses
+
+- **`COMPLETED`**: Confirmation reference was observed and extracted from official portal page text.
+- **`STOP_BLOCKED`**: Pre-execution validation or readiness gate stopped execution before browser launch.
+- **`UNCERTAIN`**: Submission was attempted but no official confirmation reference was observed.
+- **`CANCELLED`**: User explicitly declined or typed incorrect confirmation phrase at review checkpoint.
+- **`FAILED`**: Unhandled driver or browser execution error occurred.
+- **`PAUSED_*`**: Workflow is waiting for human input in CLI (Fact consent, Authorization phrase, CAPTCHA/OTP, Payment).
+
+## 🛡️ Authorization vs. Submission Consent
+
+1. **Explicit Workflow Authorization**:
+   - Prompted AFTER compliance pre-execution check.
+   - Requires exact phrase: `AUTHORIZE RTI ONLINE SUBMISSION`.
+   - Scope: Authorizes the assistant to run the assisted browser session.
+2. **Submission Consent**:
+   - Prompted at the form REVIEW checkpoint inside the portal driver.
+   - Requires exact phrase: `CONFIRM SUBMISSION`.
+   - Scope: Authorizes clicking the final submit button on the official portal.
+   - *Note*: The submission phrase is NEVER accepted as authorization and vice versa.
+
+## 🛑 What the Portal Driver Will NEVER Automate
+
+- **CAPTCHA & OTP**: Never solved, bypassed, or typed by the assistant.
+- **Passwords & Credentials**: Never requested, stored, or entered by the assistant.
+- **Payment Details**: Never accesses, reads, or enters credit cards, bank accounts, or UPI pins.
+- **Auto-Submission**: Never submits forms without explicit typed confirmation.
+
+## 🔍 How to Run Portal Recon Tool
+
+```bash
+python3 scratch/recon_rti.py
+```
+Launches a visible Chromium session at the official RTI Online request page, dumps form control metadata (labels, names, IDs, types) to `scratch/rti_recon.json` without collecting personal data.
+
+## ⏯️ Resuming Paused Workflows
+
+```bash
+# List all workflow checkpoints
+python3 -m src.bureaucracy_agent.orchestrator.cli status
+
+# Resume paused workflow by ID
+python3 -m src.bureaucracy_agent.orchestrator.cli resume <WORKFLOW_ID>
+```
+
+
 
 
 

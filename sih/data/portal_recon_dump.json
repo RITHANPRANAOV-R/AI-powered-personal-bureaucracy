@@ -1,0 +1,57 @@
+{
+  "url": "https://services2.passportindia.gov.in/forms/registration",
+  "title": "Registration",
+  "control_count": 5,
+  "controls": [
+    {
+      "tag": "input",
+      "type": "text",
+      "id": "",
+      "name": "",
+      "role": "",
+      "placeholder": "",
+      "label_text": "",
+      "sample_value": ""
+    },
+    {
+      "tag": "input",
+      "type": "text",
+      "id": "",
+      "name": "",
+      "role": "",
+      "placeholder": "",
+      "label_text": "",
+      "sample_value": ""
+    },
+    {
+      "tag": "input",
+      "type": "text",
+      "id": "",
+      "name": "",
+      "role": "",
+      "placeholder": "",
+      "label_text": "",
+      "sample_value": ""
+    },
+    {
+      "tag": "input",
+      "type": "password",
+      "id": "",
+      "name": "",
+      "role": "",
+      "placeholder": "",
+      "label_text": "",
+      "sample_value": "[REDACTED_SECRET]"
+    },
+    {
+      "tag": "input",
+      "type": "text",
+      "id": "",
+      "name": "",
+      "role": "",
+      "placeholder": "",
+      "label_text": "",
+      "sample_value": ""
+    }
+  ]
+}
