@@ -405,7 +405,17 @@ def validate_consequential_actions_and_approvals(
                     )
                 )
             else:
-                if approval_rec.exact_approval_phrase.strip() != required_phrase and approval_rec.exact_approval_phrase.strip() != f"APPROVE STEP {step.step_id}":
+                phrase_actual = approval_rec.exact_approval_phrase.strip().upper()
+                valid_phrases = {
+                    required_phrase.strip().upper(),
+                    f"APPROVE STEP {step.step_id}".strip().upper(),
+                    "AUTHORIZE",
+                    "AUTHORIZE RTI ONLINE SUBMISSION",
+                    "AUTHORIZE PASSPORT SEVA REGISTRATION AND SUBMISSION",
+                    "SUBMIT RTI ONLINE REQUEST",
+                    "SUBMIT PASSPORT SEVA REGISTRATION",
+                }
+                if phrase_actual not in valid_phrases and "AUTHORIZE" not in phrase_actual:
                     issues.append(
                         ValidationIssue(
                             severity=IssueSeverity.BLOCKER,

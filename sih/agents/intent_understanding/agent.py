@@ -391,14 +391,18 @@ def _explicit_jurisdiction(request: IntentRequest) -> Optional[str]:
 
 
 def _match_service(text: str) -> tuple[Optional[str], Optional[str]]:
+    if "rti" in text or "right to information" in text:
+        return "RTI Online", "RTI Application"
+    if "aadhaar" in text or "aadhar" in text or "uidai" in text:
+        return "UIDAI Aadhaar", "Aadhaar Card"
+    if "consumer" in text or "grievance" in text or "consumer helpline" in text:
+        return "National Consumer Helpline", "Consumer Grievance"
+    if "voter" in text or "epic" in text or "election" in text or "nvsp" in text:
+        return "Voter Services", "Voter ID"
     if "passport" in text or "passport seva" in text:
         return "Passport Seva", "Passport"
-    if "aadhaar" in text or "aadhar" in text or "uidai" in text:
-        return "Aadhaar", "Aadhaar"
-    if "driving licence" in text or "driving license" in text or re.search(r"\bdl\b", text):
+    if "driving licence" in text or "driving license" in text or re.search(r"\bdl\b", text) or "sarathi" in text:
         return "Driving Licence", "Driving Licence"
-    if "voter" in text or "epic" in text:
-        return "Voter Services", "Voter ID"
     if "pan card" in text or re.search(r"\bpan\b", text):
         return "PAN", "PAN Card"
     if "community certificate" in text or "caste certificate" in text:
@@ -419,9 +423,9 @@ def _match_task(text: str) -> TaskType:
         return TaskType.UNDERSTAND_REQUIREMENTS
     if any(token in text for token in ("update", "change address", "correct", "modify")):
         return TaskType.UPDATE
-    if any(token in text for token in ("apply", "application", "fresh", "new passport", "first time")):
+    if any(token in text for token in ("submit", "file", "lodge", "request", "apply", "application", "fresh", "new passport", "first time")):
         return TaskType.APPLY
-    return TaskType.UNKNOWN
+    return TaskType.APPLY
 
 
 def _default_clarifying_questions(result: IntentResult) -> list[str]:

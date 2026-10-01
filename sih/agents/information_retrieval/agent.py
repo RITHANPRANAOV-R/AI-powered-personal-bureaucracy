@@ -99,12 +99,7 @@ class InformationRetrievalAgent:
             )
             return _empty_result(request, RetrievalStatus.FAILED, warnings, ProcessingMode.DETERMINISTIC)
 
-        service_blob = f"{request.intent.service_name or ''} {request.intent.document_type or ''}".lower()
-        if "passport" not in service_blob:
-            warnings.append(
-                "Configured official registry is Passport Seva / MEA. Other services are not retrieved in this version."
-            )
-
+        service_blob = f"{request.intent.service_name or ''} {request.intent.document_type or ''} {getattr(request.intent, 'original_goal', '') or ''}".lower()
         queries = build_search_queries(request.intent, request.profile_context)
         hosts = resolve_hosts(request.allowed_source_hosts)
         registry = resolve_registry(request.source_registry)
@@ -114,7 +109,36 @@ class InformationRetrievalAgent:
         documents = []
         checks = []
         seen_urls: set[str] = set()
-        queue = [(spec.url, spec.title) for spec in registry]
+        service_name = (request.intent.service_name or "").lower()
+        doc_type = (request.intent.document_type or "").lower()
+        goal = (getattr(request.intent, "original_goal", "") or getattr(request.intent, "normalized_goal", "") or "").lower()
+
+        def compute_source_score(spec: OfficialSourceSpec) -> int:
+            spec_str = f"{spec.title} {spec.url} {spec.category}".lower()
+            score = 0
+            if spec.category in ("portal", "registration"):
+                score += 20
+            if "rti" in goal and "rti" in spec_str:
+                score += 200
+            elif "aadhaar" in goal and ("aadhaar" in spec_str or "uidai" in spec_str):
+                score += 200
+                if "myaadhaar" in spec_str:
+                    score += 50
+            elif "passport" in goal and "passport" in spec_str and "rti" not in goal:
+                score += 200
+            elif "consumer" in goal and "consumer" in spec_str:
+                score += 200
+            elif "voter" in goal and ("voter" in spec_str or "eci" in spec_str):
+                score += 200
+
+            if service_name and any(token in spec_str for token in service_name.split() if len(token) > 2):
+                score += 50
+            if doc_type and any(token in spec_str for token in doc_type.split() if len(token) > 2):
+                score += 30
+            return score
+
+        sorted_registry = sorted(registry, key=compute_source_score, reverse=True)
+        queue = [(spec.url, spec.title) for spec in sorted_registry]
         while queue and len(documents) < max_sources:
             url, title = queue.pop(0)
             if url in seen_urls:
@@ -291,8 +315,9 @@ def retrieve_information(request: InformationRetrievalRequest) -> RetrievedEvide
 
 
 def build_search_queries(intent: IntentResult, profile: ProfileContextResult) -> list[SearchQuery]:
-    service = intent.service_name or intent.document_type or "Passport Seva"
+    service = intent.service_name or intent.document_type or "Official Government Services"
     task = intent.task_type.value
+    doc = intent.document_type or service
     queries = [
         SearchQuery(
             query=f"{service} official {task} procedure",
@@ -302,28 +327,42 @@ def build_search_queries(intent: IntentResult, profile: ProfileContextResult) ->
     if task in {"register", "apply"}:
         queries.append(
             SearchQuery(
-                query="Passport Seva new user registration official steps",
+                query=f"{service} new request application official steps",
                 basis="intent.task_type register/apply",
             )
         )
         queries.append(
             SearchQuery(
-                query="Passport Seva documents required fresh passport official",
+                query=f"{service} documents required {doc} official guidelines",
                 basis="intent.task_type and document_type",
             )
         )
-    if task == "renew":
+    elif task == "renew":
         queries.append(
             SearchQuery(
-                query="Passport Seva reissue renewal official documents",
+                query=f"{service} reissue renewal official procedure",
                 basis="intent.task_type",
+            )
+        )
+    elif task == "track":
+        queries.append(
+            SearchQuery(
+                query=f"{service} track status application official",
+                basis="intent.task_type track",
+            )
+        )
+    elif task == "update":
+        queries.append(
+            SearchQuery(
+                query=f"{service} update details demographic document official",
+                basis="intent.task_type update",
             )
         )
     if intent.jurisdiction:
         queries.append(
             SearchQuery(
-                query=f"{service} passport office {intent.jurisdiction} official",
-                basis="intent.jurisdiction (not a personal address)",
+                query=f"{service} {intent.jurisdiction} official guidelines",
+                basis="intent.jurisdiction",
             )
         )
     # Profile is used only as a generic signal: language already on the request.

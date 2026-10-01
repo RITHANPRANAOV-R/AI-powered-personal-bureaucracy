@@ -7,11 +7,12 @@ from typing import Dict, Optional, Tuple
 
 CONFIRMATION_PATTERNS = [
     r"(Application Reference Number(?:\s*\(ARN\))?|RTI Registration Number|Registration Number|Diary Number|\bRegistration No\.?|\bARN\b)\s*[:=]\s*([A-Za-z0-9/_@:-]+)",
+    r"(Service Request Number|SRN|\bSRN No\.?|Update Request Number|\bURN\b|Enrolment ID|\bEID\b)\s*[:=]\s*([A-Za-z0-9/-]+)",
     r"(File Number|\bFile No\.?)\s*[:=]\s*([A-Za-z0-9/-]+)",
-    r"(Public Authority|Ministry/Department|Passport Seva Kendra|PSK|Office)\s*[:=]\s*([A-Za-z0-9\s,.-]+)",
-    r"(Filing Date|Date of Receipt|Appointment Date|Date & Time)\s*[:=]\s*([A-Za-z0-9\s,:-]+)",
+    r"(Public Authority|Ministry/Department|Passport Seva Kendra|PSK|UIDAI Center|Office)\s*[:=]\s*([A-Za-z0-9\s,.-]+)",
+    r"(Filing Date|Date of Receipt|Appointment Date|Date & Time|Update Date)\s*[:=]\s*([A-Za-z0-9\s,:-]+)",
     r"(Transaction ID|Payment Reference|Receipt No\.?)\s*[:=]\s*([A-Za-z0-9/-]+)",
-    r"(Payment Status|Status)\s*[:=]\s*([A-Za-z0-9\s_-]+)",
+    r"(Payment Status|Current Status|Request Status|Application Status|Status)\s*[:=]\s*([A-Za-z0-9\s_.-]+)",
 ]
 
 EXPLICIT_CONFIRMATION_MESSAGES = [
@@ -22,6 +23,18 @@ EXPLICIT_CONFIRMATION_MESSAGES = [
     "Thank you for registering",
     "Your application has been submitted successfully",
     "Account activation link has been sent to your email",
+    "Your Aadhaar update request has been submitted successfully",
+    "Update Request Generated Successfully",
+    "Aadhaar Update Receipt",
+    "SRN Generated",
+    "Payment Successful",
+    "Your Aadhaar has been generated",
+    "Your request is under process",
+    "Your request has been completed",
+    "Request Completed Successfully",
+    "Status of Enrolment",
+    "Enrolment Status",
+    "Current Status",
 ]
 
 

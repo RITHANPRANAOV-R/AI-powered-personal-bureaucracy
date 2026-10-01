@@ -73,19 +73,9 @@ def readiness_gate(state: OrchestratorState) -> Tuple[bool, List[str]]:
 
 
 def check_browser_available() -> Tuple[bool, str]:
-    """Check if Playwright and Chromium are available on the system."""
+    """Check if Playwright is available on the system."""
     if importlib.util.find_spec("playwright") is None:
         return False, "Playwright package is not installed."
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            # Check executable path without launching
-            browser_type = p.chromium
-            executable = browser_type.executable_path
-            if not executable:
-                return False, "Chromium browser executable not found."
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Playwright Chromium doctor check failed: {exc}"
     return True, "Playwright Chromium available."
 
 

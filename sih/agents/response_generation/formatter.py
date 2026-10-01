@@ -135,6 +135,15 @@ def extract_pending_actions(request: ResponseGenerationRequest) -> List[PendingA
 
 
 def extract_citizen_next_step(request: ResponseGenerationRequest) -> CitizenNextStep:
+    exec_res = request.execution_result
+    if exec_res and exec_res.confirmation_observed:
+        ref = exec_res.confirmation_reference or "Confirmed"
+        return CitizenNextStep(
+            title=f"Application Confirmed: {ref}",
+            description=f"Your application has been verified on the portal with reference number {ref}. Retain this reference for future correspondence.",
+            action_type="review",
+        )
+
     val_res = request.validation_result
     plan = request.workflow_plan
 

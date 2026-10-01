@@ -11,6 +11,8 @@ present_address: 123 Main Street, Adyar, Chennai, Tamil Nadu
 pincode: 600020
 mobile: 9876543210
 email: priya.demo@example.com
+aadhaar_number: 999941057058
+srn: S102938475610
 language_preference: English
 rti_request_text: Requesting information regarding public RTI application status under Section 6(1) of the RTI Act 2005.
 

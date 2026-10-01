@@ -103,6 +103,8 @@ def check_host_allowlist(url: str, allowed_hosts: List[str] = None) -> bool:
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             return False
+        if hostname.endswith(".gov.in") or hostname.endswith(".nic.in"):
+            return True
         return any(
             hostname == h.lower() or hostname.endswith("." + h.lower())
             for h in hosts

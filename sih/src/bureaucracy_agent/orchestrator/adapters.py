@@ -125,6 +125,80 @@ def store_validation_result(
         state.post_validation_result = result.model_dump(mode="json")
 
 
+def resolve_portal_starting_url(intent: IntentResult, evidence: RetrievedEvidenceResult) -> str:
+    """Dynamically route to the direct action/login/registration portal for the identified service."""
+    service_name = (getattr(intent, "service_name", None) or "").lower()
+    goal = (getattr(intent, "original_goal", None) or getattr(intent, "normalized_goal", None) or "").lower()
+
+    # Determine service category keywords to scope evidence records
+    service_keywords: List[str] = []
+    if "rti" in goal or "rti" in service_name or "right to information" in goal:
+        service_keywords = ["rtionline.gov.in", "rti"]
+    elif "passport" in goal or "passport" in service_name:
+        service_keywords = ["passportindia.gov.in", "passport"]
+    elif "aadhaar" in goal or "aadhaar" in service_name or "uidai" in goal:
+        service_keywords = ["myaadhaar.uidai.gov.in", "uidai.gov.in", "aadhaar"]
+    elif "consumer" in goal or "consumer" in service_name or "grievance" in goal:
+        service_keywords = ["consumerhelpline.gov.in", "consumer"]
+    elif "voter" in goal or "voter" in service_name or "election" in goal or "eci" in goal:
+        service_keywords = ["voters.eci.gov.in", "eci.gov.in", "voter"]
+
+    is_tracking = any(kw in goal for kw in ("track", "status", "check", "enrolment", "search"))
+
+    # 1. Primary: Look for direct action/login/registration URL among evidence matching THIS service
+    if evidence and evidence.evidence:
+        matching_evidence = [
+            ev for ev in evidence.evidence
+            if any(sk in (ev.source_url + " " + ev.source_host + " " + ev.source_title).lower() for sk in service_keywords)
+        ]
+
+        if matching_evidence:
+            if is_tracking:
+                for ev in matching_evidence:
+                    url = ev.source_url
+                    if url and any(kw in url.lower() for kw in ("checkaadhaarstatus", "check-aadhaar-status", "status", "track")):
+                        return url
+            # Prioritize direct action/login/registration/application form URLs
+            for ev in matching_evidence:
+                url = ev.source_url
+                if url and any(kw in url.lower() for kw in ("login", "signup", "register", "request", "guidelines", "myaadhaar", "user/index", "form")):
+                    return url
+            if "aadhaar" in service_keywords or "uidai" in service_name:
+                return "https://myaadhaar.uidai.gov.in/CheckAadhaarStatus" if is_tracking else "https://myaadhaar.uidai.gov.in/login"
+            return matching_evidence[0].source_url
+
+    # 2. Secondary: Checked official sources from retrieval for THIS service
+    if evidence and evidence.sources_checked:
+        matching_checks = [
+            c for c in evidence.sources_checked
+            if c.status.value == "fetched" and c.url and any(sk in c.url.lower() for sk in service_keywords)
+        ]
+        if is_tracking:
+            for check in matching_checks:
+                if any(kw in check.url.lower() for kw in ("checkaadhaarstatus", "check-aadhaar-status", "status", "track")):
+                    return check.url
+        for check in matching_checks:
+            if any(kw in check.url.lower() for kw in ("login", "signup", "register", "request", "guidelines", "myaadhaar")):
+                return check.url
+        if matching_checks and matching_checks[0].url:
+            return matching_checks[0].url
+
+    # 3. Dynamic service fallback
+    if "passport" in goal or "passport" in service_name:
+        return "https://services2.passportindia.gov.in/psp/trackApplication" if is_tracking else "https://services2.passportindia.gov.in/psp/login"
+    if "aadhaar" in goal or "uidai" in goal or "aadhaar" in service_name:
+        return "https://myaadhaar.uidai.gov.in/CheckAadhaarStatus" if is_tracking else "https://myaadhaar.uidai.gov.in/login"
+    if "consumer" in goal or "grievance" in goal or "consumer" in service_name:
+        return "https://consumerhelpline.gov.in/user/signup.php"
+    if "voter" in goal or "election" in goal or "voter" in service_name:
+        return "https://voters.eci.gov.in/login"
+
+    if is_tracking and ("rti" in goal or "rti" in service_name):
+        return "https://rtionline.gov.in/request/status.php"
+
+    return "https://rtionline.gov.in/guidelines.php?request"
+
+
 # --- Execution Assistance ---
 def build_execution_request(
     state: OrchestratorState,
@@ -138,6 +212,8 @@ def build_execution_request(
     plan = WorkflowPlan.model_validate(state.workflow_plan)
     validation = ValidationResult.model_validate(state.validation_result)
 
+    starting_url = resolve_portal_starting_url(intent, evidence)
+
     return ExecutionRequest(
         request_id=state.request_id,
         intent=intent,
@@ -148,7 +224,7 @@ def build_execution_request(
         selected_step_ids=selected_step_ids,
         user_approvals=user_approvals,
         confirmed_facts=confirmed_facts,
-        starting_url="https://rtionline.gov.in/guidelines.php?request",
+        starting_url=starting_url,
         dry_run=state.is_dry_run,
     )
 

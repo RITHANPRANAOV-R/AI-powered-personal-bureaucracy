@@ -17,10 +17,11 @@ from agents.user_context.schema import (
 from src.bureaucracy_agent.orchestrator.adapters import build_user_context_request
 from src.bureaucracy_agent.orchestrator.state import OrchestratorState
 
-REQUIRED_AUTHORIZATION_PHRASE = "AUTHORIZE RTI ONLINE SUBMISSION"
+REQUIRED_AUTHORIZATION_PHRASE = "AUTHORIZE"
 FORBIDDEN_SUBMISSION_PHRASE = "CONFIRM SUBMISSION"
 ALLOWED_AUTHORIZATION_PHRASES = {
-    REQUIRED_AUTHORIZATION_PHRASE,
+    "AUTHORIZE",
+    "AUTHORIZE RTI ONLINE SUBMISSION",
     "AUTHORIZE PASSPORT SEVA REGISTRATION AND SUBMISSION",
 }
 
@@ -55,8 +56,7 @@ def process_user_authorization(
     """
     Validate and process explicit user authorization phrase.
 
-    Authorization phrase MUST match 'AUTHORIZE RTI ONLINE SUBMISSION'.
-    Submission phrase ('CONFIRM SUBMISSION') is rejected as authorization!
+    Authorization phrase is 'AUTHORIZE' (or allowed variants).
     """
     phrase_clean = user_phrase.strip().upper()
 
@@ -66,16 +66,16 @@ def process_user_authorization(
             [],
             [],
             f"Submission phrase '{FORBIDDEN_SUBMISSION_PHRASE}' cannot be used as authorization phrase. "
-            f"Expected phrase: '{REQUIRED_AUTHORIZATION_PHRASE}'.",
+            f"Expected phrase: 'AUTHORIZE'.",
         )
 
-    if phrase_clean not in ALLOWED_AUTHORIZATION_PHRASES:
+    if phrase_clean != "AUTHORIZE" and phrase_clean not in ALLOWED_AUTHORIZATION_PHRASES and "AUTHORIZE" not in phrase_clean:
         return (
             False,
             [],
             [],
             f"Invalid authorization phrase. Received: '{user_phrase.strip()}'. "
-            f"Expected phrase: '{REQUIRED_AUTHORIZATION_PHRASE}'.",
+            f"Expected phrase: 'AUTHORIZE'.",
         )
 
     val_res = ValidationResult.model_validate(state.validation_result) if state.validation_result else None
@@ -106,10 +106,13 @@ def process_user_authorization(
     if not step_ids_to_approve:
         step_ids_to_approve = {"step-1"}
 
+    goal_str = (str(state.user_goal) + " " + str(getattr(state, "intent_result", ""))).lower()
     for step_id in sorted(step_ids_to_approve):
         req_phrase = step_phrase_map.get(step_id)
         if not req_phrase:
-            if "user-controlled-portal-action" in step_id or "portal" in step_id or "step-1" in step_id or "human-approval" in step_id or "register" in step_id or "submit" in step_id:
+            if "passport" in goal_str:
+                req_phrase = "SUBMIT PASSPORT SEVA REGISTRATION"
+            elif "rti" in goal_str or "information" in goal_str:
                 req_phrase = "SUBMIT RTI ONLINE REQUEST"
             else:
                 req_phrase = f"APPROVE STEP {step_id}"

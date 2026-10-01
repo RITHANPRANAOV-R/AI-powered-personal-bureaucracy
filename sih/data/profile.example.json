@@ -39,6 +39,30 @@
       "confirmed_by_user": true
     },
     {
+      "key": "aadhaar_number",
+      "value": "999941057058",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:aadhaar_number",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
+      "key": "srn",
+      "value": "S102938475610",
+      "status": "user_confirmed",
+      "source_type": "user",
+      "source_ref": "profile:srn",
+      "extracted_at": "2026-01-01T00:00:00+00:00",
+      "confidence": 1.0,
+      "relevant_to": "Synthetic demo profile; not a real identity.",
+      "sensitivity": "ordinary",
+      "confirmed_by_user": true
+    },
+    {
       "key": "present_address",
       "value": "123 Main Street, Adyar, Chennai, Tamil Nadu",
       "status": "user_confirmed",

@@ -28,6 +28,17 @@ DEFAULT_STARTING_URL = "https://rtionline.gov.in/guidelines.php?request"
 DEFAULT_ALLOWED_HOSTS = [
     "rtionline.gov.in",
     "www.rtionline.gov.in",
+    "uidai.gov.in",
+    "myaadhaar.uidai.gov.in",
+    "resident.uidai.gov.in",
+    "passportindia.gov.in",
+    "services2.passportindia.gov.in",
+    "www.passportindia.gov.in",
+    "consumerhelpline.gov.in",
+    "edaakhil.nic.in",
+    "voters.eci.gov.in",
+    "eci.gov.in",
+    "incometax.gov.in",
 ]
 
 
