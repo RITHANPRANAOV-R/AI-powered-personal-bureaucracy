@@ -3,12 +3,17 @@ import {
   Brain,
   UserCheck,
   Search,
+  FileCode2,
   ShieldCheck,
-  Terminal,
-  CheckCircle2,
+  Globe2,
+  FileCheck2,
+  Activity,
+  Award,
+  Check,
   PauseCircle,
   AlertTriangle,
   XOctagon,
+  CheckCircle2,
 } from 'lucide-react';
 import { WorkflowStatus } from '../types';
 
@@ -17,21 +22,89 @@ interface GraphVisualizerProps {
   workflowStatus: WorkflowStatus;
 }
 
-interface StepDef {
+interface GraphStepDef {
   id: string;
+  stepNum: string;
   label: string;
-  description: string;
+  shortDesc: string;
   matchNodes: string[];
-  icon: React.ComponentType<{ size: number; color?: string }>;
+  icon: React.ComponentType<{ size: number; strokeWidth?: number }>;
 }
 
-const USER_STEPS: StepDef[] = [
-  { id: 'intent', label: '1. Request Analysis', description: 'Intent & Entity Extraction', matchNodes: ['START', 'INTENT', 'PAUSED_NEEDS_INPUT'], icon: Brain },
-  { id: 'profile', label: '2. Citizen Profile', description: 'Vault Fact Verification', matchNodes: ['USER_CONTEXT', 'PAUSED_FACT_CONSENT'], icon: UserCheck },
-  { id: 'retrieval', label: '3. Official Rules', description: 'Gov Portal Knowledge', matchNodes: ['RETRIEVAL', 'PLANNING'], icon: Search },
-  { id: 'compliance', label: '4. Safety & Authorization', description: 'Zero-Trust Gate Check', matchNodes: ['COMPLIANCE_PRE', 'PAUSED_NEEDS_AUTHORIZATION', 'STOP_BLOCKED'], icon: ShieldCheck },
-  { id: 'execution', label: '5. Browser Automation', description: 'Assisted Portal Execution', matchNodes: ['EXECUTION', 'PAUSED_CAPTCHA', 'PAUSED_PAYMENT', 'COMPLIANCE_POST', 'MONITORING'], icon: Terminal },
-  { id: 'response', label: '6. Official Confirmation', description: 'Citizen Reference Report', matchNodes: ['RESPONSE', 'END'], icon: CheckCircle2 },
+// Exact 9 stages matching the backend state machine graph (graph.py)
+const GRAPH_STAGES: GraphStepDef[] = [
+  {
+    id: 'intent',
+    stepNum: '01',
+    label: 'Request Analysis',
+    shortDesc: 'Intent & Entity Extraction',
+    matchNodes: ['START', 'INTENT', 'PAUSED_NEEDS_INPUT'],
+    icon: Brain,
+  },
+  {
+    id: 'user_context',
+    stepNum: '02',
+    label: 'Citizen Context',
+    shortDesc: 'Vault Fact Verification',
+    matchNodes: ['USER_CONTEXT', 'PAUSED_FACT_CONSENT'],
+    icon: UserCheck,
+  },
+  {
+    id: 'retrieval',
+    stepNum: '03',
+    label: 'Statutory Retrieval',
+    shortDesc: 'Portal Rules & Guidelines',
+    matchNodes: ['RETRIEVAL'],
+    icon: Search,
+  },
+  {
+    id: 'planning',
+    stepNum: '04',
+    label: 'Workflow Planning',
+    shortDesc: 'Deterministic Action Plan',
+    matchNodes: ['PLANNING'],
+    icon: FileCode2,
+  },
+  {
+    id: 'compliance_pre',
+    stepNum: '05',
+    label: 'Safety Compliance',
+    shortDesc: 'Zero-Trust Gate Check',
+    matchNodes: ['COMPLIANCE_PRE', 'PAUSED_NEEDS_AUTHORIZATION', 'STOP_BLOCKED'],
+    icon: ShieldCheck,
+  },
+  {
+    id: 'execution',
+    stepNum: '06',
+    label: 'Portal Execution',
+    shortDesc: 'Assisted Browser Automation',
+    matchNodes: ['EXECUTION', 'PAUSED_CAPTCHA', 'PAUSED_PAYMENT'],
+    icon: Globe2,
+  },
+  {
+    id: 'compliance_post',
+    stepNum: '07',
+    label: 'Evidence Audit',
+    shortDesc: 'Receipt & Proof Verification',
+    matchNodes: ['COMPLIANCE_POST'],
+    icon: FileCheck2,
+  },
+  {
+    id: 'monitoring',
+    stepNum: '08',
+    label: 'Status Tracking',
+    shortDesc: 'Lifecycle Schedule',
+    matchNodes: ['MONITORING'],
+    icon: Activity,
+  },
+  {
+    id: 'response',
+    stepNum: '09',
+    label: 'Citizen Guidance',
+    shortDesc: 'Official Reference Summary',
+    matchNodes: ['RESPONSE', 'END'],
+    icon: Award,
+  },
 ];
 
 export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({
@@ -44,133 +117,216 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({
   const isCancelled = workflowStatus === 'CANCELLED';
   const isCompleted = workflowStatus === 'COMPLETED' || currentNode === 'END';
 
-  // Find step index matching current node
-  let currentStepIdx = USER_STEPS.findIndex((s) => s.matchNodes.includes(currentNode));
-  if (currentStepIdx === -1) {
-    if (isCompleted) currentStepIdx = 5;
-    else currentStepIdx = 0;
+  let currentStageIdx = GRAPH_STAGES.findIndex((s) => s.matchNodes.includes(currentNode));
+  if (currentStageIdx === -1) {
+    if (isCompleted) currentStageIdx = GRAPH_STAGES.length - 1;
+    else currentStageIdx = 0;
   }
 
+  const progressPercent = isCompleted
+    ? 100
+    : Math.round(((currentStageIdx + (isPaused ? 0.5 : 0.8)) / GRAPH_STAGES.length) * 100);
+
   return (
-    <div className="glass-panel" style={{ padding: '20px 24px', margin: '0 20px 20px 20px' }}>
-      
+    <div
+      className="card"
+      style={{
+        margin: '0 20px 24px 20px',
+        padding: '20px 24px',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: 'var(--bg-surface)',
+      }}
+    >
       {/* Header bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Autonomous Execution Progress
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '16px',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span className="section-label">State Machine Execution</span>
+            <span className="stamped-slip" style={{ fontSize: '0.72rem', padding: '2px 6px' }}>
+              9 Statutory Stages
+            </span>
+          </div>
+          <h3
+            style={{
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              margin: 0,
+            }}
+          >
+            Workflow Pipeline Stage: <span style={{ color: 'var(--accent-primary)' }}>{GRAPH_STAGES[currentStageIdx]?.label}</span>
           </h3>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Real-Time Multi-Agent Pipeline
-          </span>
         </div>
 
-        {/* Current status pill */}
+        {/* Current status badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isPaused && (
-            <span className="badge badge-amber" style={{ animation: 'pulse-glow 1.5s infinite', padding: '6px 12px' }}>
-              <PauseCircle size={14} /> Action Needed: {workflowStatus.replace('PAUSED_', '').replace('_', ' ')}
+            <span className="badge badge-warning" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <PauseCircle size={14} strokeWidth={1.75} />
+              Action Required: {workflowStatus.replace('PAUSED_', '').replace(/_/g, ' ')}
             </span>
           )}
           {isBlocked && (
-            <span className="badge badge-rose" style={{ padding: '6px 12px' }}>
-              <AlertTriangle size={14} /> Gate Blocked
+            <span className="badge badge-danger" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <AlertTriangle size={14} strokeWidth={1.75} /> Gate Blocked
             </span>
           )}
           {isCancelled && (
-            <span className="badge badge-rose" style={{ padding: '6px 12px' }}>
-              <XOctagon size={14} /> Workflow Aborted
+            <span className="badge badge-danger" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <XOctagon size={14} strokeWidth={1.75} /> Workflow Aborted
             </span>
           )}
           {isCompleted && (
-            <span className="badge badge-emerald" style={{ padding: '6px 12px' }}>
-              <CheckCircle2 size={14} /> Application Completed
+            <span className="badge badge-verified" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <CheckCircle2 size={14} strokeWidth={1.75} /> All Stages Confirmed
             </span>
           )}
           {isFailed && (
-            <span className="badge badge-rose" style={{ padding: '6px 12px' }}>
-              <AlertTriangle size={14} /> Execution Failed
+            <span className="badge badge-danger" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <AlertTriangle size={14} strokeWidth={1.75} /> Execution Failed
             </span>
           )}
           {!isPaused && !isBlocked && !isCompleted && !isFailed && !isCancelled && (
-            <span className="badge badge-indigo" style={{ padding: '6px 12px' }}>
-              <span className="pulse-dot" style={{ background: '#818cf8', width: '6px', height: '6px' }} />
-              Executing Stage {currentStepIdx + 1}/6
+            <span className="badge badge-accent" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <span className="status-dot status-dot-blue" style={{ marginRight: '2px' }} />
+              Stage {currentStageIdx + 1} of 9 in Progress
             </span>
           )}
         </div>
       </div>
 
-      {/* Stepper Progress Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-        {USER_STEPS.map((step, idx) => {
-          const Icon = step.icon;
-          const isActive = idx === currentStepIdx;
-          const isPassed = currentStepIdx > idx || isCompleted;
+      {/* Progress Bar Rule */}
+      <div
+        style={{
+          width: '100%',
+          height: '4px',
+          backgroundColor: 'var(--border-subtle)',
+          borderRadius: '2px',
+          marginBottom: '20px',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${progressPercent}%`,
+            backgroundColor: isCompleted ? 'var(--state-verified-icon)' : 'var(--accent-primary)',
+            transition: 'width 0.35s ease',
+          }}
+        />
+      </div>
 
-          let borderStyle = '1px solid var(--border-subtle)';
-          let bgStyle = 'rgba(255, 255, 255, 0.02)';
+      {/* Stepper Horizontal Scroll Container */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(9, minmax(110px, 1fr))',
+          gap: '8px',
+          overflowX: 'auto',
+          paddingBottom: '6px',
+        }}
+      >
+        {GRAPH_STAGES.map((stage, idx) => {
+          const isStageCompleted = isCompleted || idx < currentStageIdx;
+          const isStageActive = idx === currentStageIdx && !isCompleted;
+          const isStageUpcoming = idx > currentStageIdx && !isCompleted;
+
+          const IconComponent = stage.icon;
+
+          let bg = 'var(--bg-stamped-slip)';
+          let borderColor = 'var(--border-subtle)';
           let textColor = 'var(--text-muted)';
           let iconColor = 'var(--text-muted)';
 
-          if (isPassed && !isActive) {
-            borderStyle = '1px solid rgba(16, 185, 129, 0.4)';
-            bgStyle = 'rgba(16, 185, 129, 0.08)';
-            textColor = '#cbd5e1';
-            iconColor = '#10b981';
-          } else if (isActive) {
-            if (isPaused) {
-              borderStyle = '1px solid #f59e0b';
-              bgStyle = 'rgba(245, 158, 11, 0.15)';
-              textColor = '#fef3c7';
-              iconColor = '#fbbf24';
-            } else if (isCancelled || isFailed || isBlocked) {
-              borderStyle = '1px solid #f43f5e';
-              bgStyle = 'rgba(244, 63, 94, 0.15)';
-              textColor = '#ffe4e6';
-              iconColor = '#fb7185';
-            } else {
-              borderStyle = '1px solid #6366f1';
-              bgStyle = 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(6, 182, 212, 0.15))';
-              textColor = '#ffffff';
-              iconColor = '#67e8f9';
-            }
+          if (isStageCompleted) {
+            bg = 'var(--accent-primary)';
+            borderColor = 'var(--accent-primary)';
+            textColor = '#ffffff';
+            iconColor = '#ffffff';
+          } else if (isStageActive) {
+            bg = isPaused ? 'var(--state-warning-bg)' : 'var(--accent-subtle)';
+            borderColor = isPaused ? 'var(--state-warning-border)' : 'var(--accent-border)';
+            textColor = isPaused ? 'var(--state-warning-text)' : 'var(--accent-primary)';
+            iconColor = isPaused ? 'var(--state-warning-icon)' : 'var(--accent-primary)';
           }
 
           return (
             <div
-              key={step.id}
+              key={stage.id}
               style={{
-                padding: '12px 14px',
-                borderRadius: '12px',
-                background: bgStyle,
-                border: borderStyle,
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${borderColor}`,
+                padding: '10px 8px',
+                backgroundColor: isStageCompleted ? '#0f3a5a' : isStageActive ? (isPaused ? '#fef3c7' : '#e4ecf3') : '#f4efe6',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                transition: 'all 0.2s ease',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '84px',
+                transition: 'all 0.15s ease',
               }}
             >
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Icon size={18} color={iconColor} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: textColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {step.label}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.68rem',
+                    fontWeight: 600,
+                    color: isStageCompleted ? '#dce6ef' : textColor,
+                  }}
+                >
+                  {stage.stepNum}
+                </span>
+
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isStageCompleted ? 'rgba(255,255,255,0.2)' : 'transparent',
+                    color: iconColor,
+                  }}
+                >
+                  {isStageCompleted ? (
+                    <Check size={12} strokeWidth={2.5} />
+                  ) : (
+                    <IconComponent size={13} strokeWidth={1.75} />
+                  )}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {step.description}
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.74rem',
+                    fontWeight: isStageActive ? 700 : 600,
+                    color: isStageCompleted ? '#ffffff' : isStageActive ? (isPaused ? '#78350f' : '#0f3a5a') : 'var(--text-primary)',
+                    lineHeight: 1.25,
+                    marginBottom: '2px',
+                  }}
+                >
+                  {stage.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.66rem',
+                    color: isStageCompleted ? '#b8c8d6' : 'var(--text-muted)',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {stage.shortDesc}
                 </div>
               </div>
             </div>

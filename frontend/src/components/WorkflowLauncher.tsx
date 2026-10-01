@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
-  Play,
-  Shield,
-  Sliders,
-  Globe,
-  CheckCircle2,
-  AlertCircle,
-  Command,
   ArrowRight,
+  Sliders,
   ShieldCheck,
+  FileText,
+  Loader2,
+  Sparkles,
+  HelpCircle,
 } from 'lucide-react';
 import { WorkflowTemplate } from '../types';
 
@@ -27,6 +24,7 @@ interface WorkflowLauncherProps {
 
 const POPULAR_PROMPTS = [
   "Submit an RTI Online request to Ministry of External Affairs regarding passport dispatch timeline.",
+  "Track status of my Aadhaar update request with SRN S102938475610.",
   "How do I update my permanent address in Aadhaar using my electricity bill?",
   "File a consumer grievance on National Consumer Helpline for delayed service delivery.",
   "Check eligibility and document requirements for applying for a fresh Tatkaal Passport.",
@@ -59,256 +57,307 @@ export const WorkflowLauncher: React.FC<WorkflowLauncherProps> = ({
   };
 
   return (
-    <div className="glass-panel" style={{ padding: '28px', margin: '0 20px 24px 20px', position: 'relative', overflow: 'hidden' }}>
-      {/* Subtle top accent gradient line */}
+    <div
+      style={{
+        backgroundColor: 'var(--bg-hero-band)',
+        backgroundImage: `radial-gradient(ellipse at 85% 20%, rgba(15, 58, 90, 0.06) 0%, transparent 60%), url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%230F3A5A' stroke-width='0.5' stroke-opacity='0.035'%3E%3Cpath d='M0 30 Q15 0 30 30 T60 30 M0 15 Q15 45 30 15 T60 15 M0 45 Q15 15 30 45 T60 45'/%3E%3C/g%3E%3C/svg%3E")`,
+        borderBottom: '1px solid var(--border-default)',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '32px 24px 36px 24px',
+      }}
+    >
+      {/* Decorative Faint Outline Seal Watermark */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '3px',
-          background: 'linear-gradient(90deg, #6366f1, #06b6d4, #10b981)',
+          right: '-40px',
+          top: '-30px',
+          width: '280px',
+          height: '280px',
+          pointerEvents: 'none',
+          opacity: 0.07,
+          color: 'var(--accent-primary)',
         }}
-      />
-
-      {/* Header section */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '22px', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'rgba(99, 102, 241, 0.2)',
-                border: '1px solid rgba(99, 102, 241, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Sparkles size={20} color="#818cf8" />
-            </div>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-                AI Bureaucracy Assistant
-              </h2>
-              <span style={{ fontSize: '0.75rem', color: '#a5b4fc', fontWeight: 600 }}>
-                Autonomous Government Workflow & Form Execution Engine
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div className="badge badge-emerald" style={{ fontSize: '0.72rem', padding: '6px 12px' }}>
-            <ShieldCheck size={13} /> 8 Specialist Agents Active
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="btn-secondary"
-            style={{ padding: '7px 14px', fontSize: '0.8rem', borderRadius: '10px' }}
-          >
-            <Sliders size={14} color="var(--accent-cyan)" />
-            {showAdvanced ? 'Hide Options' : 'Execution Options'}
-          </button>
-        </div>
+      >
+        <svg viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="100" cy="100" r="90" strokeDasharray="6 3" />
+          <circle cx="100" cy="100" r="76" />
+          <circle cx="100" cy="100" r="60" />
+          <path d="M100 24 L100 176 M24 100 L176 100" strokeWidth="1.5" />
+          <polygon points="100,45 115,85 158,85 123,110 136,152 100,126 64,152 77,110 42,85 85,85" strokeWidth="1.5" />
+        </svg>
       </div>
 
-      {/* Main Goal Form */}
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span>Enter Citizen Request / Goal:</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-              Natural language instructions for government portal execution
-            </span>
-          </label>
-
-          <div style={{ position: 'relative' }}>
-            <textarea
-              rows={3}
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder="Type your official bureaucracy request here (e.g. 'Submit an RTI Online request to Ministry of External Affairs regarding passport dispatch timeline' or 'Update address in Aadhaar')..."
+      <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        {/* Header section */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span className="mono-step-num">01</span>
+              <span className="section-label">Citizen Intake</span>
+            </div>
+            <h2
               style={{
-                width: '100%',
-                background: 'rgba(5, 7, 14, 0.85)',
-                border: '1px solid var(--border-medium)',
-                borderRadius: '14px',
-                padding: '16px 18px',
-                color: '#ffffff',
-                fontSize: '0.96rem',
-                lineHeight: '1.5',
-                outline: 'none',
-                resize: 'vertical',
-                minHeight: '88px',
-                fontFamily: 'var(--font-sans)',
-                boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.4)',
-                transition: 'border-color 0.2s, box-shadow 0.2s',
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'rgba(99, 102, 241, 0.7)';
-                e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.2), inset 0 2px 6px rgba(0,0,0,0.4)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'var(--border-medium)';
-                e.target.style.boxShadow = 'inset 0 2px 6px rgba(0, 0, 0, 0.4)';
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Suggestion Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-            Suggestions:
-          </span>
-          {POPULAR_PROMPTS.map((p, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSelectPrompt(p)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)',
-                borderRadius: '8px',
-                padding: '4px 10px',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.35)';
-                e.currentTarget.style.color = '#c7d2fe';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
+                fontSize: '1.45rem',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.015em',
+                margin: 0,
+                lineHeight: 1.3,
+                fontFamily: 'var(--font-serif)',
               }}
             >
-              {p.length > 55 ? `${p.slice(0, 52)}...` : p}
+              Start an Official <span className="highlighter-amber">Public Service</span> Workflow
+            </h2>
+            <p
+              style={{
+                fontSize: '0.86rem',
+                color: 'var(--text-secondary)',
+                marginTop: '4px',
+                marginBottom: 0,
+                maxWidth: '720px',
+              }}
+            >
+              Enter your administrative request in plain language. The system retrieves statutory rules, verifies vault facts, and provides full human oversight.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="badge badge-accent" style={{ fontSize: '0.75rem' }}>
+              <ShieldCheck size={13} strokeWidth={1.75} /> Vault Consent Active
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="btn-secondary"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.8rem',
+                height: '32px',
+                minHeight: '32px',
+              }}
+            >
+              <Sliders size={13} strokeWidth={1.75} />
+              {showAdvanced ? 'Hide Options' : 'Workflow Options'}
             </button>
-          ))}
+          </div>
         </div>
 
-        {/* Advanced Options Bar */}
-        {showAdvanced && (
-          <div
-            className="animate-fade-in"
-            style={{
-              padding: '16px',
-              background: 'rgba(5, 7, 14, 0.6)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              marginBottom: '18px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '16px',
-            }}
-          >
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Response Language
-              </label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+        {/* Main Goal Form in clean white-cream surface */}
+        <div
+          className="card-pure"
+          style={{
+            padding: '20px 22px',
+            boxShadow: 'var(--shadow-sm)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '14px' }}>
+              <label
+                htmlFor="citizen-request-input"
                 style={{
-                  width: '100%',
-                  background: 'rgba(16, 21, 34, 0.9)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  color: '#ffffff',
-                  fontSize: '0.85rem',
-                  outline: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '4px 12px',
+                  marginBottom: '6px',
                 }}
               >
-                <option value="en">English (Official)</option>
-                <option value="hi">हिन्दी (Hindi)</option>
-                <option value="ta">தமிழ் (Tamil)</option>
-                <option value="te">తెలుగు (Telugu)</option>
-                <option value="bn">বাংলা (Bengali)</option>
-                <option value="mr">मराठी (Marathi)</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Execution Mode
+                <span>Request Details</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                  Plain citizen language (e.g. RTI request, Aadhaar update, or status tracking)
+                </span>
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={isDryRun}
-                    onChange={(e) => setIsDryRun(e.target.checked)}
-                    style={{ accentColor: '#6366f1' }}
-                  />
-                  Dry Run (Inspection Only)
-                </label>
-              </div>
+
+              <textarea
+                id="citizen-request-input"
+                rows={3}
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="Type your official administrative request (e.g., 'Submit an RTI Online request to Ministry of External Affairs regarding passport dispatch timeline' or 'Track status of my Aadhaar update request')..."
+                className="input-well"
+                style={{
+                  minHeight: '84px',
+                  lineHeight: '1.5',
+                  resize: 'vertical',
+                }}
+              />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                Submission Gate
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={stopBeforeSubmit}
-                    onChange={(e) => setStopBeforeSubmit(e.target.checked)}
-                    style={{ accentColor: '#6366f1' }}
-                  />
-                  Pause Before Final Submit
-                </label>
-              </div>
+            {/* Suggestion Chips */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '18px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                Examples:
+              </span>
+              {POPULAR_PROMPTS.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSelectPrompt(p)}
+                  className="badge badge-neutral"
+                  style={{
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-default)',
+                    padding: '4px 9px',
+                    fontSize: '0.74rem',
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--bg-stamped-slip)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-subtle)';
+                    e.currentTarget.style.borderColor = 'var(--accent-border)';
+                    e.currentTarget.style.color = 'var(--accent-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-stamped-slip)';
+                    e.currentTarget.style.borderColor = 'var(--border-default)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                  }}
+                >
+                  {p.length > 50 ? `${p.slice(0, 48)}...` : p}
+                </button>
+              ))}
             </div>
-          </div>
-        )}
 
-        {/* Action Row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
-          <button
-            type="submit"
-            disabled={isLoading || !goal.trim()}
-            className="btn-primary"
-            style={{
-              padding: '12px 28px',
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)',
-            }}
-          >
-            {isLoading ? (
-              <>
-                <div className="spinner" style={{ width: '16px', height: '16px' }} />
-                <span>Agents Orchestrating...</span>
-              </>
-            ) : (
-              <>
-                <Play size={18} />
-                <span>Start Agent Workflow</span>
-                <ArrowRight size={16} />
-              </>
+            {/* Advanced Options Bar */}
+            {showAdvanced && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  backgroundColor: 'var(--bg-sidebar-sand)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '18px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      display: 'block',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Language Adaptation
+                  </label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="input-well"
+                    style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                  >
+                    <option value="en">English (Official Format)</option>
+                    <option value="hi">हिंदी (Hindi)</option>
+                    <option value="ta">தமிழ் (Tamil)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      display: 'block',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Safety & Dry-Run Mode
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isDryRun}
+                        onChange={(e) => setIsDryRun(e.target.checked)}
+                      />
+                      <span>Dry run (Plan only, no portal interactions)</span>
+                    </label>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={stopBeforeSubmit}
+                        onChange={(e) => setStopBeforeSubmit(e.target.checked)}
+                      />
+                      <span>Pause at confirmation page before final submission</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
+
+            {/* Bottom Actions */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: '6px',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="stamped-slip">
+                  <span className="stamped-slip-label">Protocol:</span> SIH-AGY-2026
+                </span>
+                <span className="stamped-slip">
+                  <span className="stamped-slip-label">Audit:</span> Active
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || !goal.trim()}
+                className="btn-primary"
+                style={{ padding: '9px 20px', fontSize: '0.88rem' }}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Analyzing Request...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Begin Application Workflow</span>
+                    <ArrowRight size={15} strokeWidth={1.75} />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

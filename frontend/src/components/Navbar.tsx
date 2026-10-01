@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  ShieldCheck,
-  Sparkles,
-  PlusCircle,
-  Activity,
-  CheckCircle2,
-} from 'lucide-react';
+import { Landmark, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface NavbarProps {
   systemHealth: any;
@@ -21,85 +15,137 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isOnline = systemHealth?.status === 'online';
 
   return (
-    <header className="glass-panel" style={{ margin: '18px 24px', padding: '14px 28px', borderRadius: '18px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        
-        {/* Brand & Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+    <header
+      style={{
+        backgroundColor: 'var(--bg-masthead)',
+        backgroundImage: `radial-gradient(circle at 100% 0%, rgba(220, 230, 239, 0.12) 0%, transparent 60%), url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 16 Q8 0 16 16 T32 16' fill='none' stroke='%23FFFFFF' stroke-width='0.4' stroke-opacity='0.08'/%3E%3C/svg%3E")`,
+        borderBottom: '2px solid var(--border-amber-rule)',
+        padding: '14px 24px',
+        color: 'var(--text-on-navy)',
+        boxShadow: '0 2px 8px rgba(15, 58, 90, 0.25)',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px',
+        }}
+      >
+        {/* Brand Masthead */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div
             style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+              width: '38px',
+              height: '38px',
+              borderRadius: 'var(--radius-xs)',
+              backgroundColor: 'rgba(243, 239, 230, 0.15)',
+              border: '1px solid rgba(243, 239, 230, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(99, 102, 241, 0.45)',
+              color: '#f3efe6',
             }}
           >
-            <ShieldCheck size={26} color="#ffffff" />
+            <Landmark size={20} strokeWidth={1.75} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(90deg, #ffffff, #e2e8f0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                AI Personal Bureaucracy Assistant
+              <h1
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 600,
+                  letterSpacing: '-0.015em',
+                  color: '#f3efe6',
+                  margin: 0,
+                  lineHeight: 1.2,
+                  fontFamily: 'var(--font-serif)',
+                }}
+              >
+                Civil Services Assistant
               </h1>
-              <span className="badge badge-indigo" style={{ fontSize: '0.68rem', padding: '4px 10px' }}>
-                <Sparkles size={11} /> Autonomous Government Agent
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  fontWeight: 600,
+                  backgroundColor: 'rgba(243, 239, 230, 0.12)',
+                  color: '#f3efe6',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-xs)',
+                  border: '1px solid rgba(243, 239, 230, 0.22)',
+                }}
+              >
+                Official Workflow
               </span>
             </div>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Assisted Public Service Execution & Verification
+            <p
+              style={{
+                fontSize: '0.78rem',
+                color: 'var(--text-on-navy-muted)',
+                margin: 0,
+                marginTop: '2px',
+              }}
+            >
+              Public Service Procedure & Statutory Execution Portal
             </p>
           </div>
         </div>
 
-        {/* Right action & status bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Status & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '6px 14px',
-              borderRadius: '999px',
-              background: isOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-              border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)'}`,
+              gap: '6px',
+              padding: '5px 10px',
+              fontSize: '0.76rem',
+              fontWeight: 500,
+              borderRadius: 'var(--radius-xs)',
+              backgroundColor: isOnline ? 'rgba(234, 247, 237, 0.15)' : 'rgba(254, 242, 242, 0.15)',
+              border: isOnline ? '1px solid rgba(167, 227, 184, 0.35)' : '1px solid rgba(252, 165, 165, 0.35)',
+              color: isOnline ? '#a7e3b8' : '#fca5a5',
             }}
           >
-            <div
-              className="pulse-dot"
-              style={{
-                background: isOnline ? '#10b981' : '#f43f5e',
-                boxShadow: `0 0 10px ${isOnline ? '#10b981' : '#f43f5e'}`,
-              }}
-            />
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isOnline ? '#6ee7b7' : '#fda4af' }}>
-              {isOnline ? 'System Ready' : 'Connecting...'}
-            </span>
+            {isOnline ? (
+              <CheckCircle2 size={13} strokeWidth={2} style={{ color: '#86efac' }} />
+            ) : (
+              <AlertCircle size={13} strokeWidth={2} style={{ color: '#fca5a5' }} />
+            )}
+            <span>{isOnline ? 'System Ready' : 'Connecting...'}</span>
           </div>
 
           {activeWorkflowId && (
             <button
               onClick={onNewRequest}
-              className="btn-secondary"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                fontSize: '0.84rem',
-                borderRadius: '10px',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                color: '#0f3a5a',
+                backgroundColor: '#f3efe6',
+                border: '1px solid #d4cdc1',
+                borderRadius: 'var(--radius-xs)',
                 cursor: 'pointer',
+                transition: 'background-color 0.15s ease',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f3efe6')}
             >
-              <PlusCircle size={15} color="#38bdf8" />
-              New Request
+              <Plus size={14} strokeWidth={1.75} />
+              <span>New Request</span>
             </button>
           )}
         </div>
-
       </div>
     </header>
   );

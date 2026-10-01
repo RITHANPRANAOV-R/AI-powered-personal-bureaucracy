@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import {
-  ShieldAlert,
-  KeyRound,
-  CheckCircle,
   FileLock2,
-  AlertTriangle,
-  ArrowRight,
-  Sparkles,
-  Bot,
-  Terminal,
+  KeyRound,
+  Globe2,
   HelpCircle,
   XOctagon,
-  Eye,
-  RefreshCw,
+  CheckCircle2,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 import { OrchestratorState, ProfileFact } from '../types';
 
@@ -58,8 +55,6 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
 
   // --- Authorization State ---
   const [authPhrase, setAuthPhrase] = useState('');
-  
-  // Standard required authorization phrase is always AUTHORIZE
   const recommendedPhrase = 'AUTHORIZE';
 
   // --- Clarifications State ---
@@ -72,53 +67,63 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
 
   return (
     <div
-      className="glass-panel-elevated animate-fade-in"
+      className="card"
       style={{
         margin: '0 20px 24px 20px',
-        padding: '24px',
-        border: '1px solid rgba(245, 158, 11, 0.45)',
-        boxShadow: '0 0 35px rgba(245, 158, 11, 0.18)',
-        position: 'relative',
-        overflow: 'hidden',
+        padding: '24px 28px',
+        borderRadius: 'var(--radius-md)',
+        borderLeft: '4px solid var(--state-warning-icon)',
+        backgroundColor: 'var(--bg-surface)',
+        boxShadow: 'var(--shadow-md)',
       }}
     >
-      {/* Top Warning Glow Line */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '3px',
-          background: 'linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b)',
-        }}
-      />
-
       {/* 1. FACT CONSENT GATE */}
       {status === 'PAUSED_FACT_CONSENT' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '12px',
-                  background: 'rgba(245, 158, 11, 0.2)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-xs)',
+                  backgroundColor: 'var(--state-warning-bg)',
+                  border: '1px solid var(--state-warning-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: 'var(--state-warning-icon)',
                 }}
               >
-                <FileLock2 size={24} color="#fbbf24" />
+                <FileLock2 size={20} strokeWidth={1.75} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fbbf24' }}>
-                  Human-in-the-Loop: Citizen Fact Consent Required
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <span className="section-label">Human Consent Checkpoint</span>
+                  <span className="badge badge-warning">Action Required</span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  Verify Personal Profile Facts
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  Review personal vault facts before compliance validation gates proceed.
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                  Review personal facts retrieved from your encrypted vault before submitting them to government portals.
                 </p>
               </div>
             </div>
@@ -128,97 +133,106 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                 type="button"
                 onClick={onAbortWorkflow}
                 disabled={isLoading}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  borderRadius: '10px',
-                  padding: '8px 16px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
+                className="btn-destructive-outline"
               >
-                <XOctagon size={15} />
-                Abort Workflow
+                <XOctagon size={14} strokeWidth={1.75} />
+                <span>Abort Workflow</span>
               </button>
             )}
           </div>
 
           {unconfirmedFacts.length === 0 ? (
-            <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', color: 'var(--text-muted)' }}>
-              All facts are confirmed. Click below to continue.
+            <div
+              style={{
+                padding: '14px 18px',
+                background: 'var(--bg-stamped-slip)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.85rem',
+                marginBottom: '16px',
+              }}
+            >
+              All profile facts are verified. Click below to continue execution.
             </div>
           ) : (
             <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <table className="table-editorial">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-medium)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                    <th style={{ padding: '10px' }}>Fact Key</th>
-                    <th style={{ padding: '10px' }}>Extracted Value</th>
-                    <th style={{ padding: '10px' }}>Source Ref</th>
-                    <th style={{ padding: '10px' }}>Consent Decision</th>
+                  <tr>
+                    <th>Fact Identifier</th>
+                    <th>Extracted / Verified Value</th>
+                    <th>Source Document</th>
+                    <th>Consent Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unconfirmedFacts.map((fact) => (
-                    <tr key={fact.key} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '12px 10px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        <code>{fact.key}</code>
+                    <tr key={fact.key}>
+                      <td style={{ fontWeight: 600 }}>
+                        <span className="stamped-slip">{fact.key}</span>
                       </td>
-                      <td style={{ padding: '12px 10px' }}>
+                      <td>
                         <input
                           type="text"
                           value={editedValues[fact.key] ?? fact.value}
-                          onChange={(e) => setEditedValues({ ...editedValues, [fact.key]: e.target.value })}
-                          style={{
-                            background: 'rgba(5, 7, 12, 0.8)',
-                            border: '1px solid var(--border-medium)',
-                            borderRadius: '6px',
-                            padding: '6px 10px',
-                            color: '#ffffff',
-                            fontSize: '0.85rem',
-                            width: '100%',
-                            maxWidth: '260px',
-                          }}
+                          onChange={(e) =>
+                            setEditedValues({ ...editedValues, [fact.key]: e.target.value })
+                          }
+                          className="input-well"
+                          style={{ maxWidth: '280px', padding: '6px 10px', fontSize: '0.85rem' }}
                         />
                       </td>
-                      <td style={{ padding: '12px 10px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                         {fact.source_ref}
                       </td>
-                      <td style={{ padding: '12px 10px' }}>
+                      <td>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button
                             type="button"
                             onClick={() => setDecisions({ ...decisions, [fact.key]: 'save' })}
                             style={{
                               padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
+                              borderRadius: 'var(--radius-xs)',
+                              fontSize: '0.76rem',
+                              fontWeight: 500,
                               cursor: 'pointer',
-                              border: decisions[fact.key] === 'save' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
-                              background: decisions[fact.key] === 'save' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                              color: decisions[fact.key] === 'save' ? '#6ee7b7' : 'var(--text-muted)',
+                              border:
+                                decisions[fact.key] === 'save'
+                                  ? '1px solid var(--state-verified-border)'
+                                  : '1px solid var(--border-default)',
+                              backgroundColor:
+                                decisions[fact.key] === 'save'
+                                  ? 'var(--state-verified-bg)'
+                                  : 'var(--bg-surface)',
+                              color:
+                                decisions[fact.key] === 'save'
+                                  ? 'var(--state-verified-text)'
+                                  : 'var(--text-secondary)',
                             }}
                           >
-                            Save
+                            Save to Vault
                           </button>
                           <button
                             type="button"
                             onClick={() => setDecisions({ ...decisions, [fact.key]: 'use_once' })}
                             style={{
                               padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
+                              borderRadius: 'var(--radius-xs)',
+                              fontSize: '0.76rem',
+                              fontWeight: 500,
                               cursor: 'pointer',
-                              border: decisions[fact.key] === 'use_once' ? '1px solid #38bdf8' : '1px solid var(--border-subtle)',
-                              background: decisions[fact.key] === 'use_once' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-                              color: decisions[fact.key] === 'use_once' ? '#7dd3fc' : 'var(--text-muted)',
+                              border:
+                                decisions[fact.key] === 'use_once'
+                                  ? '1px solid var(--accent-border)'
+                                  : '1px solid var(--border-default)',
+                              backgroundColor:
+                                decisions[fact.key] === 'use_once'
+                                  ? 'var(--accent-subtle)'
+                                  : 'var(--bg-surface)',
+                              color:
+                                decisions[fact.key] === 'use_once'
+                                  ? 'var(--accent-primary)'
+                                  : 'var(--text-secondary)',
                             }}
                           >
                             Use Once
@@ -228,13 +242,22 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                             onClick={() => setDecisions({ ...decisions, [fact.key]: 'skip' })}
                             style={{
                               padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
+                              borderRadius: 'var(--radius-xs)',
+                              fontSize: '0.76rem',
+                              fontWeight: 500,
                               cursor: 'pointer',
-                              border: decisions[fact.key] === 'skip' ? '1px solid #f43f5e' : '1px solid var(--border-subtle)',
-                              background: decisions[fact.key] === 'skip' ? 'rgba(244, 63, 94, 0.2)' : 'transparent',
-                              color: decisions[fact.key] === 'skip' ? '#fda4af' : 'var(--text-muted)',
+                              border:
+                                decisions[fact.key] === 'skip'
+                                  ? '1px solid var(--state-danger-border)'
+                                  : '1px solid var(--border-default)',
+                              backgroundColor:
+                                decisions[fact.key] === 'skip'
+                                  ? 'var(--state-danger-bg)'
+                                  : 'var(--bg-surface)',
+                              color:
+                                decisions[fact.key] === 'skip'
+                                  ? 'var(--state-danger-text)'
+                                  : 'var(--text-secondary)',
                             }}
                           >
                             Skip
@@ -256,18 +279,16 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                 setDecisions(allSave);
               }}
               className="btn-secondary"
-              style={{ fontSize: '0.85rem' }}
             >
               Set All to 'Save'
             </button>
             <button
               onClick={() => onSubmitConsent(decisions, editedValues)}
               disabled={isLoading}
-              className="btn-accent-emerald"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              className="btn-primary"
             >
-              <CheckCircle size={16} />
-              Confirm Fact Consent & Continue
+              <CheckCircle2 size={16} strokeWidth={1.75} />
+              <span>Confirm Vault Consent & Continue</span>
             </button>
           </div>
         </div>
@@ -276,28 +297,50 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       {/* 2. EXPLICIT AUTHORIZATION GATE */}
       {status === 'PAUSED_NEEDS_AUTHORIZATION' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '12px',
-                  background: 'rgba(99, 102, 241, 0.25)',
-                  border: '1px solid rgba(99, 102, 241, 0.5)',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-xs)',
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: 'var(--accent-primary)',
                 }}
               >
-                <KeyRound size={24} color="#818cf8" />
+                <KeyRound size={20} strokeWidth={1.75} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff' }}>
-                  Safety Checkpoint: Explicit Authorization Required
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <span className="section-label">Zero-Trust Authorization</span>
+                  <span className="badge badge-warning">Safety Checkpoint</span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  Confirm Execution Permission
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Workflow planning and compliance gates passed. Enter authorization phrase to grant permission to execute.
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                  Statutory planning is complete. Enter the confirmation keyword to authorize autonomous portal interaction.
                 </p>
               </div>
             </div>
@@ -307,49 +350,45 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                 type="button"
                 onClick={onAbortWorkflow}
                 disabled={isLoading}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  borderRadius: '10px',
-                  padding: '8px 16px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
+                className="btn-destructive-outline"
               >
-                <XOctagon size={15} />
-                Abort Workflow
+                <XOctagon size={14} strokeWidth={1.75} />
+                <span>Abort Workflow</span>
               </button>
             )}
           </div>
 
           <div
             style={{
-              background: 'rgba(5, 7, 14, 0.8)',
-              border: '1px solid var(--border-medium)',
-              borderRadius: '14px',
-              padding: '18px',
-              marginBottom: '18px',
+              backgroundColor: 'var(--bg-stamped-slip)',
+              border: '1px dashed var(--border-dashed-slip)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '14px 18px',
+              marginBottom: '16px',
             }}
           >
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em' }}>
-              Required Authorization Phrase:
+            <div
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                marginBottom: '6px',
+              }}
+            >
+              Required Authorization Keyword
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-              <code style={{ fontSize: '0.98rem', fontWeight: 700, color: '#67e8f9', background: 'rgba(6, 182, 212, 0.12)', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.3)', letterSpacing: '0.02em' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <span className="stamped-slip" style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--accent-primary)' }}>
                 {recommendedPhrase}
-              </code>
+              </span>
               <button
                 type="button"
                 onClick={() => setAuthPhrase(recommendedPhrase)}
                 className="btn-secondary"
-                style={{ padding: '8px 14px', fontSize: '0.82rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '5px 12px', fontSize: '0.78rem' }}
               >
-                <Sparkles size={14} color="#38bdf8" /> Auto-fill Phrase
+                <Sparkles size={13} strokeWidth={1.75} /> Auto-fill Keyword
               </button>
             </div>
           </div>
@@ -362,43 +401,29 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
               }
             }}
           >
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={authPhrase}
                 onChange={(e) => setAuthPhrase(e.target.value)}
-                placeholder={`Type or auto-fill: ${recommendedPhrase}`}
+                placeholder={`Type or auto-fill '${recommendedPhrase}' to proceed...`}
+                className="input-well"
                 style={{
                   flex: 1,
-                  minWidth: '280px',
-                  background: 'rgba(5, 7, 14, 0.9)',
-                  border: '1px solid var(--border-bright)',
-                  borderRadius: '12px',
-                  padding: '12px 16px',
-                  color: '#ffffff',
-                  fontSize: '0.94rem',
+                  minWidth: '240px',
                   fontFamily: 'var(--font-mono)',
-                  outline: 'none',
+                  letterSpacing: '0.04em',
                 }}
               />
 
               <button
                 type="submit"
                 disabled={isLoading || !authPhrase.trim()}
-                className="btn-accent-amber"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '12px 28px',
-                  borderRadius: '12px',
-                  fontSize: '0.94rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                className="btn-primary"
+                style={{ padding: '9px 22px' }}
               >
-                <KeyRound size={17} />
-                Authorize & Execute
+                <KeyRound size={15} strokeWidth={1.75} />
+                <span>Authorize & Execute</span>
               </button>
             </div>
           </form>
@@ -408,29 +433,54 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       {/* 3. CAPTCHA / PAYMENT CHALLENGE GATE */}
       {(status === 'PAUSED_CAPTCHA' || status === 'PAUSED_PAYMENT') && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '12px',
-                  background: 'rgba(244, 63, 94, 0.2)',
-                  border: '1px solid rgba(244, 63, 94, 0.45)',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-xs)',
+                  backgroundColor: 'var(--state-warning-bg)',
+                  border: '1px solid var(--state-warning-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  animation: 'pulse 2s infinite',
+                  color: 'var(--state-warning-icon)',
                 }}
               >
-                <Terminal size={24} color="#f43f5e" />
+                <Globe2 size={20} strokeWidth={1.75} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f43f5e' }}>
-                  {status === 'PAUSED_CAPTCHA' ? 'Live Browser: CAPTCHA / Verification Checkpoint' : 'Live Browser: Portal Payment Required'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <span className="section-label">Assisted Portal Automation</span>
+                  <span className="badge badge-warning">
+                    {status === 'PAUSED_CAPTCHA' ? 'CAPTCHA / OTP Challenge' : 'Fee Payment Required'}
+                  </span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  {status === 'PAUSED_CAPTCHA'
+                    ? 'Complete Portal Verification in Browser'
+                    : 'Complete Official Portal Payment'}
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  The Chromium browser is open. Form fields have been filled automatically from your vault. Please complete the CAPTCHA or OTP on the portal page, then click <strong>Resume Assistant</strong>.
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                  The browser session is loaded with all vault facts autofilled. Please solve the CAPTCHA or complete OTP verification in the portal window, then click <strong>Resume Assistant</strong>.
                 </p>
               </div>
             </div>
@@ -440,33 +490,20 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                 type="button"
                 onClick={onAbortWorkflow}
                 disabled={isLoading}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  borderRadius: '10px',
-                  padding: '8px 16px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
+                className="btn-destructive-outline"
               >
-                <XOctagon size={15} />
-                Abort Workflow
+                <XOctagon size={14} strokeWidth={1.75} />
+                <span>Abort Workflow</span>
               </button>
             )}
           </div>
 
           <div
             style={{
-              padding: '16px 20px',
-              background: 'rgba(5, 7, 14, 0.7)',
-              border: '1px solid var(--border-medium)',
-              borderRadius: '12px',
-              marginBottom: '20px',
+              padding: '14px 18px',
+              backgroundColor: 'var(--bg-sidebar-sand)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-sm)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -474,30 +511,26 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
               gap: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
-              <span style={{ fontSize: '0.9rem', color: '#ffffff', fontWeight: 600 }}>
-                Browser Session Active (Chromium) — Ready for Human Action
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="status-dot status-dot-green" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Chromium Session Ready — Awaiting Citizen Interaction
               </span>
             </div>
 
             <button
               onClick={onResumePause}
               disabled={isLoading}
-              className="btn-accent-emerald"
+              className="btn-primary"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '12px 28px',
-                borderRadius: '12px',
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                boxShadow: '0 0 20px rgba(16, 185, 129, 0.35)',
+                backgroundColor: 'var(--state-verified-text)',
+                borderColor: '#0f3a1d',
+                color: '#ffffff',
+                padding: '9px 22px',
               }}
             >
-              <CheckCircle size={18} />
-              {isLoading ? 'Submitting & Resuming...' : 'Resume Assistant'}
+              <CheckCircle2 size={16} strokeWidth={1.75} />
+              <span>{isLoading ? 'Resuming Assistant...' : 'Resume Assistant'}</span>
             </button>
           </div>
         </div>
@@ -506,28 +539,50 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       {/* 4. CLARIFICATION QUESTIONS GATE */}
       {status === 'PAUSED_NEEDS_INPUT' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '12px',
-                  background: 'rgba(6, 182, 212, 0.2)',
-                  border: '1px solid rgba(6, 182, 212, 0.4)',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-xs)',
+                  backgroundColor: 'var(--accent-subtle)',
+                  border: '1px solid var(--accent-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: 'var(--accent-primary)',
                 }}
               >
-                <HelpCircle size={24} color="#06b6d4" />
+                <HelpCircle size={20} strokeWidth={1.75} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#06b6d4' }}>
-                  Intent Clarification Needed
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <span className="section-label">Intent Clarification</span>
+                  <span className="badge badge-warning">Input Needed</span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  Additional Details Required
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  The Intent Understanding Agent requires additional details to formulate the precise workflow plan.
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                  Please answer the following questions to formulate the exact statutory execution route.
                 </p>
               </div>
             </div>
@@ -537,47 +592,36 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
                 type="button"
                 onClick={onAbortWorkflow}
                 disabled={isLoading}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  borderRadius: '10px',
-                  padding: '8px 16px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
+                className="btn-destructive-outline"
               >
-                <XOctagon size={15} />
-                Abort Workflow
+                <XOctagon size={14} strokeWidth={1.75} />
+                <span>Abort Workflow</span>
               </button>
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
             {questions.map((q) => (
               <div key={q}>
-                <label style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '8px' }}>
+                <label
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    display: 'block',
+                    marginBottom: '6px',
+                  }}
+                >
                   {q}
                 </label>
                 <input
                   type="text"
                   value={clarificationAnswers[q] || ''}
-                  onChange={(e) => setClarificationAnswers({ ...clarificationAnswers, [q]: e.target.value })}
-                  placeholder="Type your clarification answer..."
-                  style={{
-                    width: '100%',
-                    background: 'rgba(5, 7, 14, 0.85)',
-                    border: '1px solid var(--border-medium)',
-                    borderRadius: '10px',
-                    padding: '10px 14px',
-                    color: '#ffffff',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                  }}
+                  onChange={(e) =>
+                    setClarificationAnswers({ ...clarificationAnswers, [q]: e.target.value })
+                  }
+                  placeholder="Type your answer here..."
+                  className="input-well"
                 />
               </div>
             ))}
@@ -588,15 +632,13 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
               onClick={() => onSubmitClarifications(clarificationAnswers)}
               disabled={isLoading}
               className="btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '12px' }}
             >
-              <ArrowRight size={16} />
-              Submit Answers & Resume
+              <ArrowRight size={15} strokeWidth={1.75} />
+              <span>Submit Clarifications & Resume</span>
             </button>
           </div>
         </div>
       )}
-
     </div>
   );
 };
