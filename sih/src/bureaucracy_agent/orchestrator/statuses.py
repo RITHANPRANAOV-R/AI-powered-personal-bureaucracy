@@ -15,6 +15,7 @@ class WorkflowStatus(str, Enum):
     PAUSED_NEEDS_AUTHORIZATION = "PAUSED_NEEDS_AUTHORIZATION"
     PAUSED_CAPTCHA = "PAUSED_CAPTCHA"
     PAUSED_PAYMENT = "PAUSED_PAYMENT"
+    PAUSED_UNKNOWN_FIELDS = "PAUSED_UNKNOWN_FIELDS"
 
     @property
     def is_paused(self) -> bool:

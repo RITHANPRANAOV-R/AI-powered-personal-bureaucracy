@@ -126,6 +126,12 @@ class ClarificationAnswerRequest(BaseModel):
     answers: Dict[str, str]
 
 
+class SubmitPortalFieldsRequest(BaseModel):
+    field_values: Dict[str, str]
+    field_labels: Dict[str, str] = Field(default_factory=dict)
+    save_to_vault: Dict[str, bool] = Field(default_factory=dict)
+
+
 # --- Workflow Runner with WebSocket Broadcasts ---
 
 def run_workflow_to_pause_or_end(state: OrchestratorState, graph: OrchestratorGraph) -> OrchestratorState:
@@ -448,6 +454,77 @@ async def resume_paused_workflow(workflow_id: str):
         state.workflow_status = WorkflowStatus.RUNNING
 
     checkpoint_store.save_checkpoint(state)
+    state = await asyncio.to_thread(graph.run, state)
+    checkpoint_store.save_checkpoint(state)
+
+    state_dict = state.model_dump(mode="json")
+    await ConnectionManager.broadcast_state(workflow_id, state_dict, event_type="state_update")
+    return state_dict
+
+
+@app.post("/api/workflows/{workflow_id}/submit-fields")
+async def submit_portal_fields(workflow_id: str, req: SubmitPortalFieldsRequest):
+    """
+    Fill user-entered values into official government portal in live Playwright session,
+    save specified facts to user profile / encrypted knowledge base for future use,
+    and resume workflow execution.
+    """
+    state = checkpoint_store.load_checkpoint(workflow_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
+
+    from src.bureaucracy_agent.portal.driver import fill_submitted_portal_fields, persist_new_facts_to_vault
+
+    # 1. Fill fields directly into the live browser session
+    filled_count = await asyncio.to_thread(fill_submitted_portal_fields, state.request_id, req.field_values)
+    logger.info(f"Filled {filled_count} custom form fields into portal for workflow {workflow_id}")
+
+    # 2. Persist facts marked to save to knowledge base / vault
+    facts_to_save = {}
+    for k, v in req.field_values.items():
+        if req.save_to_vault.get(k, True):  # Default save new facts to vault
+            facts_to_save[k] = v
+
+    if facts_to_save:
+        profile_path = state.profile_path or str(PROFILE_PATH)
+        await asyncio.to_thread(persist_new_facts_to_vault, profile_path, facts_to_save, req.field_labels)
+        logger.info(f"Persisted {len(facts_to_save)} confirmed facts to profile store {profile_path}")
+
+        # Also update state.profile_result relevant facts
+        if state.profile_result:
+            rf_list = state.profile_result.get("relevant_facts", [])
+            for fk, fv in facts_to_save.items():
+                norm_k = fk.lower().replace(" ", "_").replace("-", "_")
+                existing = next((f for f in rf_list if f.get("key") == norm_k), None)
+                if existing:
+                    existing["value"] = fv
+                    existing["confirmed_by_user"] = True
+                    existing["status"] = "user_confirmed"
+                else:
+                    rf_list.append({
+                        "key": norm_k,
+                        "value": fv,
+                        "status": "user_confirmed",
+                        "source_type": "user",
+                        "source_ref": "portal_form_interview",
+                        "extracted_at": datetime.now(timezone.utc).isoformat(),
+                        "confidence": 1.0,
+                        "relevant_to": f"Official portal field: {req.field_labels.get(fk, fk)}",
+                        "sensitivity": "ordinary",
+                        "confirmed_by_user": True,
+                    })
+            state.profile_result["relevant_facts"] = rf_list
+
+    # Clear missing portal fields from state user_input_payload
+    if state.user_input_payload and "missing_portal_fields" in state.user_input_payload:
+        state.user_input_payload.pop("missing_portal_fields", None)
+
+    # 3. Resume workflow execution
+    graph = OrchestratorGraph(checkpoint_store=checkpoint_store)
+    state.workflow_status = WorkflowStatus.RUNNING
+    state.current_node = "EXECUTION"
+    checkpoint_store.save_checkpoint(state)
+
     state = await asyncio.to_thread(graph.run, state)
     checkpoint_store.save_checkpoint(state)
 

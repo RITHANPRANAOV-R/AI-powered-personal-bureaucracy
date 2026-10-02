@@ -5,10 +5,22 @@ export type WorkflowStatus =
   | 'PAUSED_NEEDS_AUTHORIZATION'
   | 'PAUSED_CAPTCHA'
   | 'PAUSED_PAYMENT'
+  | 'PAUSED_UNKNOWN_FIELDS'
   | 'STOP_BLOCKED'
   | 'COMPLETED'
   | 'FAILED'
   | 'CANCELLED';
+
+export interface MissingPortalField {
+  key: string;
+  name: string;
+  id: string;
+  label: string;
+  type: string;
+  options?: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  is_required?: boolean;
+}
 
 export interface ProfileFact {
   key: string;

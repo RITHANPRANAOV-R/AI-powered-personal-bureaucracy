@@ -10,8 +10,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
+  FileEdit,
+  Database,
+  Save,
 } from 'lucide-react';
-import { OrchestratorState, ProfileFact } from '../types';
+import { OrchestratorState, ProfileFact, MissingPortalField } from '../types';
 
 interface HumanInTheLoopGateProps {
   state: OrchestratorState;
@@ -20,6 +23,11 @@ interface HumanInTheLoopGateProps {
   onResumePause: () => void;
   onAbortWorkflow?: () => void;
   onSubmitClarifications: (answers: Record<string, string>) => void;
+  onSubmitPortalFields?: (
+    fieldValues: Record<string, string>,
+    fieldLabels: Record<string, string>,
+    saveToVault: Record<string, boolean>
+  ) => void;
   isLoading: boolean;
 }
 
@@ -30,9 +38,15 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
   onResumePause,
   onAbortWorkflow,
   onSubmitClarifications,
+  onSubmitPortalFields,
   isLoading,
 }) => {
   const status = state.workflow_status;
+
+  // --- Missing Portal Form Fields State ---
+  const missingPortalFields: MissingPortalField[] = state.user_input_payload?.missing_portal_fields || [];
+  const [portalFieldValues, setPortalFieldValues] = useState<Record<string, string>>({});
+  const [portalFieldSaveToVault, setPortalFieldSaveToVault] = useState<Record<string, boolean>>({});
 
   // --- Fact Consent State ---
   const unconfirmedFacts: ProfileFact[] = (state.profile_result?.relevant_facts || []).filter(
@@ -61,9 +75,20 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
   const questions = state.intent_result?.clarification_questions || [];
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
 
-  if (!status.startsWith('PAUSED_')) {
+  if (!status.startsWith('PAUSED_') && missingPortalFields.length === 0) {
     return null;
   }
+
+  // Handle submit unknown portal fields
+  const handlePortalFieldsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading || !onSubmitPortalFields) return;
+    const labelsMap: Record<string, string> = {};
+    missingPortalFields.forEach((f) => {
+      labelsMap[f.key] = f.label;
+    });
+    onSubmitPortalFields(portalFieldValues, labelsMap, portalFieldSaveToVault);
+  };
 
   return (
     <div
@@ -77,8 +102,202 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
         boxShadow: 'var(--shadow-md)',
       }}
     >
+      {/* 0. UNKNOWN / UNFILLED PORTAL FORM FIELDS GATE */}
+      {(status === 'PAUSED_UNKNOWN_FIELDS' || missingPortalFields.length > 0) && (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-xs)',
+                  backgroundColor: 'var(--state-warning-bg)',
+                  border: '1px solid var(--state-warning-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--state-warning-icon)',
+                }}
+              >
+                <FileEdit size={20} strokeWidth={1.75} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <span className="section-label">Portal Form Autofill Assistance</span>
+                  <span className="badge badge-warning">Additional Details Required</span>
+                </div>
+                <h3
+                  style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  Enter Missing Details for Official Portal
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                  The government portal requires the following fields that were not in your vault. Enter them below: the assistant will fill them into the official website and update your encrypted knowledge base for future applications.
+                </p>
+              </div>
+            </div>
+
+            {onAbortWorkflow && (
+              <button
+                type="button"
+                onClick={onAbortWorkflow}
+                disabled={isLoading}
+                className="btn-destructive-outline"
+              >
+                <XOctagon size={14} strokeWidth={1.75} />
+                <span>Abort Workflow</span>
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handlePortalFieldsSubmit}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: '16px',
+                marginBottom: '20px',
+                backgroundColor: 'var(--bg-sidebar-sand)',
+                padding: '18px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              {missingPortalFields.map((field) => (
+                <div
+                  key={field.key}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    backgroundColor: 'var(--bg-surface)',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <label
+                      style={{
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {field.label} {field.is_required && <span style={{ color: 'var(--state-danger-text)' }}>*</span>}
+                    </label>
+                    <span className="stamped-slip" style={{ fontSize: '0.68rem', padding: '1px 5px' }}>
+                      {field.key}
+                    </span>
+                  </div>
+
+                  {field.type === 'select' && field.options && field.options.length > 0 ? (
+                    <select
+                      value={portalFieldValues[field.key] || ''}
+                      onChange={(e) =>
+                        setPortalFieldValues({ ...portalFieldValues, [field.key]: e.target.value })
+                      }
+                      className="input-well"
+                      style={{ fontSize: '0.84rem', padding: '8px 10px' }}
+                    >
+                      <option value="">-- Select from official options --</option>
+                      {field.options.map((opt, i) => (
+                        <option key={i} value={opt.label || opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === 'textarea' ? (
+                    <textarea
+                      rows={3}
+                      value={portalFieldValues[field.key] || ''}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
+                      onChange={(e) =>
+                        setPortalFieldValues({ ...portalFieldValues, [field.key]: e.target.value })
+                      }
+                      className="input-well"
+                      style={{ fontSize: '0.84rem', padding: '8px 10px', resize: 'vertical' }}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={portalFieldValues[field.key] || ''}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
+                      onChange={(e) =>
+                        setPortalFieldValues({ ...portalFieldValues, [field.key]: e.target.value })
+                      }
+                      className="input-well"
+                      style={{ fontSize: '0.84rem', padding: '8px 10px' }}
+                    />
+                  )}
+
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.74rem',
+                      color: 'var(--text-secondary)',
+                      marginTop: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={portalFieldSaveToVault[field.key] !== false}
+                      onChange={(e) =>
+                        setPortalFieldSaveToVault({
+                          ...portalFieldSaveToVault,
+                          [field.key]: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>Save to Knowledge Base / Vault for future applications</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="stamped-slip">
+                  <Database size={13} strokeWidth={1.75} /> Auto-Syncs to Profile Vault
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="btn-primary"
+                style={{ padding: '9px 22px' }}
+              >
+                <Save size={15} strokeWidth={1.75} />
+                <span>Fill in Official Portal & Save to Knowledge Base</span>
+                <ArrowRight size={14} strokeWidth={1.75} />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* 1. FACT CONSENT GATE */}
-      {status === 'PAUSED_FACT_CONSENT' && (
+      {status === 'PAUSED_FACT_CONSENT' && missingPortalFields.length === 0 && (
         <div>
           <div
             style={{
@@ -295,7 +514,7 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       )}
 
       {/* 2. EXPLICIT AUTHORIZATION GATE */}
-      {status === 'PAUSED_NEEDS_AUTHORIZATION' && (
+      {status === 'PAUSED_NEEDS_AUTHORIZATION' && missingPortalFields.length === 0 && (
         <div>
           <div
             style={{
@@ -431,7 +650,7 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       )}
 
       {/* 3. CAPTCHA / PAYMENT CHALLENGE GATE */}
-      {(status === 'PAUSED_CAPTCHA' || status === 'PAUSED_PAYMENT') && (
+      {(status === 'PAUSED_CAPTCHA' || status === 'PAUSED_PAYMENT') && missingPortalFields.length === 0 && (
         <div>
           <div
             style={{
@@ -537,7 +756,7 @@ export const HumanInTheLoopGate: React.FC<HumanInTheLoopGateProps> = ({
       )}
 
       {/* 4. CLARIFICATION QUESTIONS GATE */}
-      {status === 'PAUSED_NEEDS_INPUT' && (
+      {status === 'PAUSED_NEEDS_INPUT' && missingPortalFields.length === 0 && (
         <div>
           <div
             style={{

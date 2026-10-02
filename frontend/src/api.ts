@@ -125,6 +125,28 @@ export async function abortWorkflow(workflowId: string): Promise<OrchestratorSta
   return res.json();
 }
 
+export async function submitPortalFields(
+  workflowId: string,
+  fieldValues: Record<string, string>,
+  fieldLabels: Record<string, string> = {},
+  saveToVault: Record<string, boolean> = {}
+): Promise<OrchestratorState> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/submit-fields`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      field_values: fieldValues,
+      field_labels: fieldLabels,
+      save_to_vault: saveToVault,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to fill fields in portal' }));
+    throw new Error(err.detail || 'Failed to fill fields in portal');
+  }
+  return res.json();
+}
+
 export async function answerClarifications(
   workflowId: string,
   answers: Record<string, string>

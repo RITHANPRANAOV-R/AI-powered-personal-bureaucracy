@@ -17,6 +17,7 @@ import {
   resumePausedWorkflow,
   abortWorkflow,
   answerClarifications,
+  submitPortalFields,
   createWorkflowWebSocket,
 } from './api';
 
@@ -159,6 +160,29 @@ export function App() {
     }
   };
 
+  const handleSubmitPortalFields = async (
+    fieldValues: Record<string, string>,
+    fieldLabels: Record<string, string>,
+    saveToVault: Record<string, boolean>
+  ) => {
+    if (!activeWorkflow) return;
+    setIsLoading(true);
+    setErrorBanner(null);
+    try {
+      const state = await submitPortalFields(
+        activeWorkflow.workflow_id,
+        fieldValues,
+        fieldLabels,
+        saveToVault
+      );
+      setActiveWorkflow(state);
+    } catch (err: any) {
+      setErrorBanner(err.message || 'Failed to submit form fields to portal');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleNewRequest = () => {
     if (activeWorkflow && (activeWorkflow.workflow_status.startsWith('PAUSED_') || activeWorkflow.workflow_status === 'RUNNING')) {
       handleAbortWorkflow();
@@ -242,7 +266,7 @@ export function App() {
           />
         )}
 
-        {/* Human in the loop Gate (AUTHORIZE / CAPTCHA / Consent) */}
+        {/* Human in the loop Gate (AUTHORIZE / CAPTCHA / Consent / Unknown Fields) */}
         {activeWorkflow && (
           <HumanInTheLoopGate
             state={activeWorkflow}
@@ -251,6 +275,7 @@ export function App() {
             onResumePause={handleResumePause}
             onAbortWorkflow={handleAbortWorkflow}
             onSubmitClarifications={handleSubmitClarifications}
+            onSubmitPortalFields={handleSubmitPortalFields}
             isLoading={isLoading}
           />
         )}

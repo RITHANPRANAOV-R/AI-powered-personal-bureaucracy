@@ -113,10 +113,19 @@ def route_after_execution(state: OrchestratorState) -> str:
 
     status = exec_res.execution_status
     if status == ExecutionStatus.PAUSED_FOR_USER or status == ExecutionStatus.NEEDS_USER_INPUT:
+        # Check if pause reason was missing/unfilled portal fields
+        if (
+            any("missing" in p.reason.lower() or "unfilled" in p.reason.lower() or "unknown field" in p.reason.lower() for p in exec_res.user_pause_points)
+            or (state.user_input_payload and len(state.user_input_payload.get("missing_portal_fields", [])) > 0)
+        ):
+            log_route("EXECUTION", "PAUSED_UNKNOWN_FIELDS", "Execution paused for unfilled portal form fields")
+            return "PAUSED_UNKNOWN_FIELDS"
+
         # Check if pause reason was payment
         if any("payment" in p.reason.lower() for p in exec_res.user_pause_points):
             log_route("EXECUTION", "PAUSED_PAYMENT", "Execution paused for payment")
             return "PAUSED_PAYMENT"
+
         log_route("EXECUTION", "PAUSED_CAPTCHA", "Execution paused for CAPTCHA/user challenge")
         return "PAUSED_CAPTCHA"
 

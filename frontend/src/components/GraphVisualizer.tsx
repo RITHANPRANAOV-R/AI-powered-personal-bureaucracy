@@ -172,7 +172,7 @@ export const GraphVisualizer: React.FC<GraphVisualizerProps> = ({
           {isPaused && (
             <span className="badge badge-warning" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
               <PauseCircle size={14} strokeWidth={1.75} />
-              Action Required: {workflowStatus.replace('PAUSED_', '').replace(/_/g, ' ')}
+              Action Required: {workflowStatus === 'PAUSED_UNKNOWN_FIELDS' ? 'Portal Details Needed' : workflowStatus.replace('PAUSED_', '').replace(/_/g, ' ')}
             </span>
           )}
           {isBlocked && (

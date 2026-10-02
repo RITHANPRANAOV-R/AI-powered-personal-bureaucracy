@@ -261,6 +261,210 @@ def fill_form_fields(
     return filled_count
 
 
+def detect_unfilled_portal_fields(page: Any) -> List[Dict[str, Any]]:
+    """
+    Dynamically scan the active browser DOM to detect visible input/select/textarea
+    fields that remain unfilled and are not secrets (not captcha, otp, password).
+    Returns field keys, names, labels, input types, and options for dropdowns.
+    """
+    try:
+        script = """() => {
+            const results = [];
+            const isSecret = (el) => {
+                const name = (el.name || '').toLowerCase();
+                const id = (el.id || '').toLowerCase();
+                const type = (el.type || '').toLowerCase();
+                const placeholder = (el.placeholder || '').toLowerCase();
+                if (type === 'password' || type === 'hidden' || type === 'submit' || type === 'button' || type === 'reset' || type === 'image') return true;
+                if (name.includes('captcha') || id.includes('captcha') || placeholder.includes('captcha') || name.includes('6_letters_code') || id.includes('6_letters_code') || name.includes('securitycode')) return true;
+                if (name.includes('otp') || id.includes('otp') || placeholder.includes('otp')) return true;
+                return false;
+            };
+
+            const isVisible = (el) => {
+                if (!el || el.offsetParent === null) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+
+            const getLabel = (el) => {
+                if (el.id) {
+                    const l = document.querySelector(`label[for="${el.id}"]`);
+                    if (l && l.innerText.trim()) return l.innerText.trim();
+                }
+                const parentLabel = el.closest('label');
+                if (parentLabel && parentLabel.innerText.trim()) {
+                    return parentLabel.innerText.replace(el.innerText || '', '').trim();
+                }
+                const tr = el.closest('tr');
+                if (tr) {
+                    const td = el.closest('td');
+                    if (td) {
+                        const prevTd = td.previousElementSibling;
+                        if (prevTd && prevTd.innerText.trim()) return prevTd.innerText.trim();
+                    }
+                    const th = tr.querySelector('th');
+                    if (th && th.innerText.trim()) return th.innerText.trim();
+                }
+                if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+                if (el.placeholder) return el.placeholder.trim();
+                if (el.title) return el.title.trim();
+                if (el.name) {
+                    return el.name.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+                }
+                return el.id || 'Field';
+            };
+
+            const elements = Array.from(document.querySelectorAll('input, select, textarea'));
+            for (const el of elements) {
+                if (!isVisible(el)) continue;
+                if (el.disabled || el.readOnly) continue;
+                if (isSecret(el)) continue;
+
+                const tagName = el.tagName.toLowerCase();
+                const type = (el.type || 'text').toLowerCase();
+
+                let val = el.value || '';
+                let isUnfilled = false;
+                let options = [];
+
+                if (tagName === 'select') {
+                    const selOpts = Array.from(el.options || []);
+                    options = selOpts.map(o => ({ value: o.value, label: o.text.trim() })).filter(o => o.label.length > 0);
+                    const selectedIdx = el.selectedIndex;
+                    const selectedText = selectedIdx >= 0 && selOpts[selectedIdx] ? selOpts[selectedIdx].text.trim().toLowerCase() : '';
+                    if (!val || val === '0' || val === '-1' || selectedText.startsWith('--') || selectedText.startsWith('select') || selectedText === '') {
+                        isUnfilled = true;
+                    }
+                } else if (tagName === 'textarea') {
+                    if (!val.trim()) isUnfilled = true;
+                } else if (tagName === 'input') {
+                    if (type === 'checkbox') {
+                        if (!el.checked && el.required) isUnfilled = true;
+                    } else if (type === 'radio') {
+                        // skip lone radio buttons
+                    } else {
+                        if (!val.trim()) isUnfilled = true;
+                    }
+                }
+
+                if (isUnfilled) {
+                    let rawLabel = getLabel(el);
+                    let cleanLabel = rawLabel.replace(/[*:]/g, '').replace(/\\(Mandatory\\)/gi, '').replace(/\\s+/g, ' ').trim();
+                    if (cleanLabel.length > 60) cleanLabel = cleanLabel.substring(0, 60);
+
+                    const fieldKey = el.name || el.id || ('field_' + results.length);
+                    if (!results.some(r => r.key === fieldKey)) {
+                        results.push({
+                            key: fieldKey,
+                            name: el.name || '',
+                            id: el.id || '',
+                            label: cleanLabel || fieldKey,
+                            type: tagName === 'select' ? 'select' : (tagName === 'textarea' ? 'textarea' : type),
+                            options: options.slice(0, 50),
+                            placeholder: el.placeholder || '',
+                            is_required: el.required || rawLabel.includes('*') || rawLabel.toLowerCase().includes('mandatory')
+                        });
+                    }
+                }
+            }
+            return results;
+        };"""
+        return page.evaluate(script) or []
+    except Exception as exc:
+        print(f"[DETECT UNFILLED FIELDS NOTE] {exc}")
+        return []
+
+
+def fill_submitted_portal_fields(session_id: str, field_values: Dict[str, str]) -> int:
+    """Fill user-provided unknown field values directly into the active Playwright browser page."""
+    if session_id not in _DRIVER_SESSIONS:
+        return 0
+    page = _DRIVER_SESSIONS[session_id].get("page")
+    if not page:
+        return 0
+
+    filled_count = 0
+    for field_key, val in field_values.items():
+        if not val or not str(val).strip():
+            continue
+        val_str = str(val).strip()
+        locators = [
+            f"[name='{field_key}']",
+            f"#{field_key}",
+            f"input[name='{field_key}']",
+            f"textarea[name='{field_key}']",
+            f"select[name='{field_key}']",
+            f"input[id='{field_key}']",
+            f"textarea[id='{field_key}']",
+            f"select[id='{field_key}']",
+        ]
+        for loc in locators:
+            try:
+                if page.is_visible(loc, timeout=400):
+                    tag = page.locator(loc).evaluate("el => el.tagName.toLowerCase()")
+                    if tag == "select":
+                        try:
+                            page.select_option(loc, label=val_str)
+                            filled_count += 1
+                            break
+                        except Exception:
+                            try:
+                                page.select_option(loc, value=val_str)
+                                filled_count += 1
+                                break
+                            except Exception:
+                                options = page.locator(f"{loc} option").all_inner_texts()
+                                matched = next((o for o in options if val_str.lower() in o.lower()), None)
+                                if matched:
+                                    page.select_option(loc, label=matched)
+                                    filled_count += 1
+                                    break
+                    elif tag in ("input", "textarea"):
+                        page.fill(loc, val_str)
+                        try:
+                            page.locator(loc).dispatch_event("input")
+                            page.locator(loc).dispatch_event("change")
+                        except Exception:
+                            pass
+                        filled_count += 1
+                        break
+            except Exception:
+                continue
+    return filled_count
+
+
+def persist_new_facts_to_vault(profile_path: str, field_values: Dict[str, str], field_labels: Dict[str, str]) -> None:
+    """Persist user-entered field values into the user's profile and knowledge base store."""
+    from pathlib import Path
+    from agents.user_context.schema import FactSourceType, FactStatus, ProfileFact, Sensitivity
+    from agents.user_context.storage import ProfileStore
+
+    store = ProfileStore(Path(profile_path))
+    new_facts: List[ProfileFact] = []
+    for key, val in field_values.items():
+        if not val or not str(val).strip():
+            continue
+        norm_key = key.lower().replace(" ", "_").replace("-", "_")
+        fact = ProfileFact(
+            key=norm_key,
+            value=str(val).strip(),
+            status=FactStatus.USER_CONFIRMED,
+            source_type=FactSourceType.USER,
+            source_ref="portal_form_interview",
+            extracted_at=utc_now(),
+            confidence=1.0,
+            relevant_to=f"Official portal field: {field_labels.get(key, key)}",
+            sensitivity=Sensitivity.ORDINARY,
+            confirmed_by_user=True,
+        )
+        new_facts.append(fact)
+    if new_facts:
+        store.upsert_confirmed(new_facts)
+
+
 _DRIVER_SESSIONS: Dict[str, Dict[str, Any]] = {}
 _DRIVER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="playwright_driver")
 
@@ -464,6 +668,54 @@ class PortalBrowserDriver:
 
                 # Check 2: Auto-fill non-secret fields on this subsequent page (e.g. request form or update details)
                 fill_form_fields(page, facts_by_key, ALL_PORTAL_SELECTORS, field_actions)
+
+                # Check 2b: Detect if any visible non-secret fields remain unfilled / unknown
+                unfilled_fields = detect_unfilled_portal_fields(page)
+                if unfilled_fields:
+                    log_stage("UNKNOWN_FIELDS", f"Detected {len(unfilled_fields)} unfilled/unknown fields on portal page. Pausing for user input.")
+                    pause_rec = UserPausePoint(
+                        step_id=main_step_id,
+                        reason=f"Unfilled portal form fields detected ({len(unfilled_fields)} fields)",
+                        paused_at=utc_now(),
+                    )
+                    user_pause_points.append(pause_rec)
+
+                    _DRIVER_SESSIONS[session_id] = {
+                        "playwright": p,
+                        "browser": browser,
+                        "context": context,
+                        "page": page,
+                        "started_at": started_at,
+                        "field_actions": field_actions,
+                        "user_pause_points": user_pause_points,
+                        "portal_observations": portal_observations,
+                        "main_step_id": main_step_id,
+                        "missing_portal_fields": unfilled_fields,
+                    }
+
+                    return ExecutionResult(
+                        contract_version=CONTRACT_VERSION,
+                        execution_request_id=request.execution_request_id,
+                        request_id=request.request_id,
+                        plan_id=request.workflow_plan.plan_id if request.workflow_plan else "plan-1",
+                        plan_version=request.workflow_plan.plan_version if request.workflow_plan else 1,
+                        validation_request_id=request.validation_result.validation_request_id,
+                        execution_status=ExecutionStatus.PAUSED_FOR_USER,
+                        step_results=[
+                            StepExecutionResult(
+                                step_id=main_step_id,
+                                status=StepExecutionStatus.PAUSED_FOR_USER,
+                                action_summary=f"Form loaded with {len(unfilled_fields)} unknown/unfilled fields. Awaiting user input.",
+                                started_at=started_at,
+                            )
+                        ],
+                        field_actions=field_actions,
+                        user_pause_points=user_pause_points,
+                        portal_observations=portal_observations,
+                        submission_attempted=False,
+                        confirmation_observed=False,
+                        warnings=warnings,
+                    )
 
                 # Check 3: Check for CAPTCHA, OTP, or user verification challenge
                 has_secret, secret_descs, locators_found = detect_secret_elements(page)
@@ -769,6 +1021,54 @@ class PortalBrowserDriver:
             # Stage 3: FILL non-secret fields from confirmed facts across all supported portals
             log_stage("FILL", f"Filling non-secret form fields from confirmed facts on {current_url}")
             fill_form_fields(page, facts_by_key, ALL_PORTAL_SELECTORS, field_actions)
+
+            # Stage 3b: Detect if any visible non-secret fields remain unfilled / unknown
+            unfilled_fields = detect_unfilled_portal_fields(page)
+            if unfilled_fields:
+                log_stage("UNKNOWN_FIELDS", f"Detected {len(unfilled_fields)} unfilled/unknown fields on portal page. Pausing for user input.")
+                pause_rec = UserPausePoint(
+                    step_id=main_step_id,
+                    reason=f"Unfilled portal form fields detected ({len(unfilled_fields)} fields)",
+                    paused_at=utc_now(),
+                )
+                user_pause_points.append(pause_rec)
+
+                _DRIVER_SESSIONS[session_id] = {
+                    "playwright": p,
+                    "browser": browser,
+                    "context": context,
+                    "page": page,
+                    "started_at": started_at,
+                    "field_actions": field_actions,
+                    "user_pause_points": user_pause_points,
+                    "portal_observations": portal_observations,
+                    "main_step_id": main_step_id,
+                    "missing_portal_fields": unfilled_fields,
+                }
+
+                return ExecutionResult(
+                    contract_version=CONTRACT_VERSION,
+                    execution_request_id=request.execution_request_id,
+                    request_id=request.request_id,
+                    plan_id=request.workflow_plan.plan_id if request.workflow_plan else "plan-1",
+                    plan_version=request.workflow_plan.plan_version if request.workflow_plan else 1,
+                    validation_request_id=request.validation_result.validation_request_id,
+                    execution_status=ExecutionStatus.PAUSED_FOR_USER,
+                    step_results=[
+                        StepExecutionResult(
+                            step_id=main_step_id,
+                            status=StepExecutionStatus.PAUSED_FOR_USER,
+                            action_summary=f"Form loaded with {len(unfilled_fields)} unknown/unfilled fields. Awaiting user input.",
+                            started_at=started_at,
+                        )
+                    ],
+                    field_actions=field_actions,
+                    user_pause_points=user_pause_points,
+                    portal_observations=portal_observations,
+                    submission_attempted=False,
+                    confirmation_observed=False,
+                    warnings=warnings,
+                )
 
             # Inject contextual top helper banner into browser page
             banner_msg = "Form fields filled automatically from your vault. Please enter the <strong>CAPTCHA code</strong> below, then click <strong>Resume Assistant</strong> in your web dashboard."

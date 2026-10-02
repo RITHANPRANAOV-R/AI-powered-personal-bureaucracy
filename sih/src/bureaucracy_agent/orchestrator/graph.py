@@ -41,9 +41,10 @@ TRANSITION_TABLE: Dict[str, Set[str]] = {
     "COMPLIANCE_PRE": {"STOP_BLOCKED", "PAUSED_FACT_CONSENT", "PAUSED_NEEDS_AUTHORIZATION", "EXECUTION"},
     "PAUSED_FACT_CONSENT": {"COMPLIANCE_PRE"},
     "PAUSED_NEEDS_AUTHORIZATION": {"COMPLIANCE_PRE"},
-    "EXECUTION": {"PAUSED_CAPTCHA", "PAUSED_PAYMENT", "COMPLIANCE_POST", "RESPONSE"},
+    "EXECUTION": {"PAUSED_CAPTCHA", "PAUSED_PAYMENT", "PAUSED_UNKNOWN_FIELDS", "COMPLIANCE_POST", "RESPONSE"},
     "PAUSED_CAPTCHA": {"EXECUTION"},
     "PAUSED_PAYMENT": {"EXECUTION"},
+    "PAUSED_UNKNOWN_FIELDS": {"EXECUTION"},
     "COMPLIANCE_POST": {"MONITORING"},
     "MONITORING": {"RESPONSE"},
     "RESPONSE": {"END"},
@@ -246,6 +247,8 @@ class OrchestratorGraph:
             state.workflow_status = WorkflowStatus.PAUSED_CAPTCHA
         elif next_node == "PAUSED_PAYMENT":
             state.workflow_status = WorkflowStatus.PAUSED_PAYMENT
+        elif next_node == "PAUSED_UNKNOWN_FIELDS":
+            state.workflow_status = WorkflowStatus.PAUSED_UNKNOWN_FIELDS
 
         self._transition(state, next_node)
         return state

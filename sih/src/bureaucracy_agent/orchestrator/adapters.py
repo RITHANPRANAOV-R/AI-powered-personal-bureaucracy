@@ -233,6 +233,16 @@ def store_execution_result(state: OrchestratorState, result: ExecutionResult) ->
     state.execution_result = result.model_dump(mode="json")
     state.submission_attempted = result.submission_attempted
     state.confirmation_observed = result.confirmation_observed
+    try:
+        from src.bureaucracy_agent.portal.driver import _DRIVER_SESSIONS
+        if state.request_id in _DRIVER_SESSIONS:
+            missing = _DRIVER_SESSIONS[state.request_id].get("missing_portal_fields")
+            if missing:
+                state.user_input_payload["missing_portal_fields"] = missing
+            else:
+                state.user_input_payload.pop("missing_portal_fields", None)
+    except Exception:
+        pass
 
 
 # --- Monitoring Update ---
