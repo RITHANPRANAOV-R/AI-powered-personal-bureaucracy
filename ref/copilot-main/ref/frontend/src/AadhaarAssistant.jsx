@@ -84,7 +84,7 @@ export default function AadhaarAssistant() {
         setStatus('confirming');
         setError('');
         try {
-            const response = await confirmAadhaarDocument(extraction, corrections);
+            const response = await confirmAadhaarDocument(extraction, corrections, sessionId);
             setConfirmedContext(response.confirmed_context || response);
             setStatus('idle');
             setStep(3);
