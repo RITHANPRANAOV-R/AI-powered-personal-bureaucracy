@@ -9,6 +9,5 @@ __all__ = [
     "ExecutionIntegrationService",
     "IntegrationRequest",
     "IntegrationResult",
-    "IntegrationResult",
     "IntegrationStatus",
 ]

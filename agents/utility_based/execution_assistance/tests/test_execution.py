@@ -23,6 +23,7 @@ from agents.utility_based.execution_assistance import (
     FactStatus,
     HumanIntervention,
     MockExecutionAdapter,
+    ResumeCheckpoint,
     StepExecutionStatus,
 )
 from agents.utility_based.execution_assistance.executor import ExecutionCoordinator
@@ -32,6 +33,8 @@ NOW = datetime.now(timezone.utc)
 
 
 def make_request(*, outcomes=None, **changes):
+    if isinstance(changes.get("resume_checkpoint"), dict):
+        changes["resume_checkpoint"] = ResumeCheckpoint(**changes["resume_checkpoint"])
     approval = PlanStep(
         step_id="approval",
         sequence=1,
@@ -100,7 +103,8 @@ def make_request(*, outcomes=None, **changes):
         ),
         execution_options=ExecutionOptions(execution_id="execution-1"),
     )
-    return request.model_copy(update=changes), MockExecutionAdapter(outcomes)
+    updated_request = request.model_copy(update=changes)
+    return ExecutionRequest.model_validate(updated_request.model_dump()), MockExecutionAdapter(outcomes)
 
 
 def run(request, adapter):
@@ -310,12 +314,119 @@ def test_unsupported_step_and_absent_plan_step():
     request.workflow_plan.steps[1] = request.workflow_plan.steps[1].model_copy(update={"step_type": StepType.REVIEW_EVIDENCE})
     result = run(request, adapter)
     assert result.status == ExecutionStatus.BLOCKED
-    assert adapter.calls == []
 
     request, adapter = make_request()
     request.execution_authorization.approved_step_ids.append("not-in-plan")
     result = run(request, adapter)
     assert result.status == ExecutionStatus.BLOCKED
+
+
+def test_evidence_gap_cannot_unlock_dependent_step():
+    request, adapter = make_request()
+    gap = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "evidence-gap",
+        "step_type": StepType.EVIDENCE_GAP,
+        "depends_on": [],
+    })
+    action = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "dependent-action",
+        "sequence": 3,
+        "depends_on": ["evidence-gap"],
+    })
+    request.workflow_plan.steps = [request.workflow_plan.steps[0], gap, action]
+    request.execution_authorization.approved_step_ids = ["dependent-action"]
+    request.compliance_decision.authorized_step_ids = ["dependent-action"]
+
+    result = run(request, adapter)
+
+    assert result.status == ExecutionStatus.BLOCKED
+    assert "unsupported" in (result.failure_reason or "").lower()
+    assert adapter.calls == []
+
+
+def test_unresolved_review_cannot_unlock_dependent_step():
+    request, adapter = make_request()
+    review = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "review-evidence",
+        "step_type": StepType.REVIEW_EVIDENCE,
+        "depends_on": [],
+    })
+    action = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "dependent-action",
+        "sequence": 3,
+        "depends_on": ["review-evidence"],
+    })
+    request.workflow_plan.steps = [request.workflow_plan.steps[0], review, action]
+    request.execution_authorization.approved_step_ids = ["dependent-action"]
+    request.compliance_decision.authorized_step_ids = ["dependent-action"]
+
+    result = run(request, adapter)
+
+    assert result.status == ExecutionStatus.BLOCKED
+    assert "unsupported" in (result.failure_reason or "").lower()
+    assert adapter.calls == []
+
+
+def test_completed_review_checkpoint_allows_dependency_traversal():
+    request, adapter = make_request(
+        resume_checkpoint={
+            "checkpoint_reference": "review-checkpoint",
+            "completed_step_ids": ["review-evidence"],
+            "human_action_completed": True,
+        }
+    )
+    review = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "review-evidence",
+        "step_type": StepType.REVIEW_EVIDENCE,
+        "depends_on": [],
+    })
+    action = request.workflow_plan.steps[1].model_copy(update={
+        "step_id": "dependent-action",
+        "sequence": 3,
+        "depends_on": ["review-evidence"],
+    })
+    request.workflow_plan.steps = [request.workflow_plan.steps[0], review, action]
+    request.execution_authorization.approved_step_ids = ["review-evidence", "dependent-action"]
+    request.compliance_decision.authorized_step_ids = ["dependent-action"]
+
+    result = run(request, adapter)
+
+    assert result.status == ExecutionStatus.COMPLETED
+    assert adapter.calls == ["dependent-action"]
+
+
+def test_explicitly_authorized_unsupported_step_still_blocks():
+    request, adapter = make_request()
+    request.workflow_plan.steps[1] = request.workflow_plan.steps[1].model_copy(update={
+        "step_type": StepType.REVIEW_EVIDENCE,
+    })
+
+    result = run(request, adapter)
+
+    assert result.status == ExecutionStatus.BLOCKED
+    assert "unsupported" in (result.failure_reason or "").lower()
+    assert adapter.calls == []
+
+
+def test_human_intervention_gate_remains_unchanged():
+    intervention = HumanIntervention(
+        reason="OTP is required",
+        required_user_action="Enter the OTP",
+        checkpoint_reference="checkpoint-human",
+    )
+    request, adapter = make_request(outcomes={
+        "action": AdapterResult(
+            status="human_intervention_required",
+            outcome="Paused for OTP",
+            human_intervention=intervention,
+        )
+    })
+
+    result = run(request, adapter)
+
+    assert result.status == ExecutionStatus.HUMAN_INTERVENTION_REQUIRED
+    assert result.human_intervention.checkpoint_reference == "checkpoint-human"
+    assert adapter.calls == ["action"]
 
 
 def test_execution_does_not_mutate_session_or_confirmed_context():
