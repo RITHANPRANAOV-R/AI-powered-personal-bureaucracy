@@ -70,6 +70,69 @@ class DocumentClassifier:
         return best_type, round(confidence, 2)
 
 
+DISALLOWED_NAME_WORDS = {
+    # Labels & Field Names
+    "name", "nam", "naam", "mobile", "phone", "email", "mail", "contact", "tel", "telephone",
+    "pin", "pincode", "vid", "uid", "uidai", "no", "number", "num",
+    "dob", "date", "birth", "year", "yob", "age",
+    "gender", "sex", "male", "female", "transgender", "purush", "mahila", "tritiyapanthi",
+    "address", "pata", "to", "from", "signature", "signed", "digitally",
+    "valid", "invalid", "help", "helpline", "toll", "free", "www", "http", "https",
+    "com", "gov", "in", "org", "net",
+    # Government & Entity names
+    "aadhaar", "aadhar", "adhar", "mera", "meri", "pehchan", "pehechan",
+    "bharat", "india", "sarkar", "government", "govt", "authority",
+    "unique", "identification", "enrolment", "enrollment", "update", "updated",
+    "years", "year", "after", "every", "electronically", "generated", "information",
+    "details", "card", "cardholder", "republic", "income", "tax", "permanent",
+    "account", "elector", "photo", "identity", "driving", "licence", "license",
+    "transport", "commission", "election", "state", "union", "national", "portal",
+    "download", "resident", "citizen", "instruction", "instructions", "note",
+    "important", "qr", "code", "secure", "offline", "verification", "xml", "masked",
+    "father", "mother", "husband", "wife", "son", "daughter", "guardian", "care",
+    "house", "flat", "street", "road", "nagar", "sector", "city", "district",
+    "bureaucracy", "document", "copy", "original", "proof", "citizenship",
+    "pradhikaran", "vishisht", "aam", "aadmi", "adhikar", "dept", "department",
+    "helpdesk", "online", "services", "service", "portal", "issued", "issue",
+    "should", "been", "with", "have", "your", "this", "that", "these", "those",
+    "about", "above", "below", "other", "such", "there", "their", "which", "where",
+}
+
+ADDRESS_BOILERPLATE_PATTERNS = [
+    r"should\s+be\s+updated",
+    r"after\s+every\s+\d+\s+years",
+    r"date\s+of\s+enrolment",
+    r"date\s+of\s+enrollment",
+    r"enrolment\s+no",
+    r"enrollment\s+no",
+    r"aadhaar\s+helps\s+you",
+    r"government\s+benefits",
+    r"government\s+services",
+    r"keep\s+your\s+mobile",
+    r"updated\s+in\s+aadhaar",
+    r"proof\s+of\s+identity",
+    r"not\s+of\s+citizenship",
+    r"not\s+a\s+proof\s+of\s+citizenship",
+    r"help@uidai",
+    r"www\.uidai",
+    r"toll\s+free",
+    r"1947",
+    r"unique\s+identification\s+authority",
+    r"bharat\s+sarkar",
+    r"government\s+of\s+india",
+    r"mera\s+aadhaar",
+    r"meri\s+pehchan",
+    r"download\s+date",
+    r"generation\s+date",
+    r"digitally\s+signed",
+    r"electronic\s+signature",
+    r"validity\s+unknown",
+    r"signature\s+valid",
+    r"valid\s+only\s+with",
+    r"information\s+on\s+this\s+card",
+]
+
+
 class FieldExtractor:
     """
     Extracts structured key-value fields (name, dob, gender, address, document reference) from user documents.
@@ -84,59 +147,20 @@ class FieldExtractor:
             return fields
 
         # 1. Gender Extraction
-        gender_match = re.search(r"\b(MALE|FEMALE|TRANSGENDER)\b", text, re.IGNORECASE)
-        if gender_match:
-            fields["gender"] = ExtractedField(
-                field_name="gender",
-                value=gender_match.group(1).upper(),
-                confidence=0.95,
-                page_number=page_number,
-            )
+        gender_field = self._extract_gender(text, page_number)
+        if gender_field:
+            fields["gender"] = gender_field
 
         # 2. Date of Birth / Year of Birth
-        dob_match = re.search(r"\b(DOB|Date of Birth|Birth Date)[:\s]+(\d{2}/\d{2}/\d{4}|\d{2}-\d{2}-\d{4})\b", text, re.IGNORECASE)
-        if dob_match:
-            fields["dob"] = ExtractedField(
-                field_name="dob",
-                value=dob_match.group(2),
-                confidence=0.92,
-                page_number=page_number,
-            )
-        else:
-            yob_match = re.search(r"\b(Year of Birth|YOB)[:\s]+(\d{4})\b", text, re.IGNORECASE)
-            if yob_match:
-                fields["dob"] = ExtractedField(
-                    field_name="dob",
-                    value=yob_match.group(2),
-                    confidence=0.85,
-                    page_number=page_number,
-                )
+        dob_field = self._extract_dob(text, page_number)
+        if dob_field:
+            fields["dob"] = dob_field
 
-        # 3. Name Extraction
-        name_match = re.search(r"\b(Name|To)[:\s]+([A-Za-z\s]{3,35})\b", text)
-        if name_match:
-            clean_name = name_match.group(2).strip()
-            if len(clean_name) > 3 and not re.search(r"(government|authority|india)", clean_name, re.IGNORECASE):
-                fields["name"] = ExtractedField(
-                    field_name="name",
-                    value=clean_name,
-                    confidence=0.88,
-                    page_number=page_number,
-                )
-
-        # 4. Document Reference Number (Masked for privacy)
-        if doc_type == DocumentType.AADHAAR or re.search(r"\b\d{4}\s?\d{4}\s?\d{4}\b", text):
-            aadhaar_match = re.search(r"\b(\d{4})[\s-]?(\d{4})[\s-]?(\d{4})\b", text)
-            if aadhaar_match:
-                raw_num = f"{aadhaar_match.group(1)}{aadhaar_match.group(2)}{aadhaar_match.group(3)}"
-                masked_num = f"XXXX-XXXX-{aadhaar_match.group(3)}"
-                fields["masked_aadhaar"] = ExtractedField(
-                    field_name="masked_aadhaar",
-                    value=masked_num,
-                    confidence=0.95,
-                    page_number=page_number,
-                )
-                logger.info(f"Privacy Safe Log: Extracted masked Aadhaar reference: '{masked_num}'")
+        # 3. Document Reference Number (Masked for privacy)
+        if doc_type == DocumentType.AADHAAR or re.search(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b", text) or re.search(r"[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}", text):
+            aadhaar_field = self._extract_masked_aadhaar(text, page_number)
+            if aadhaar_field:
+                fields["masked_aadhaar"] = aadhaar_field
 
         elif doc_type == DocumentType.PAN:
             pan_match = re.search(r"\b([A-Z]{5}[0-9]{4}[A-Z]{1})\b", text)
@@ -150,14 +174,393 @@ class FieldExtractor:
                     page_number=page_number,
                 )
 
+        # 4. Name Extraction
+        name_field = self._extract_name(text, page_number)
+        if name_field:
+            fields["name"] = name_field
+
         # 5. Address Extraction
-        addr_match = re.search(r"\b(Address|S/O|D/O|W/O)[:\s]+([\s\S]{10,120}?)(?=\d{6}|\b\d{4}\s\d{4}\b|\n\n|$)", text, re.IGNORECASE)
-        if addr_match:
-            fields["address"] = ExtractedField(
-                field_name="address",
-                value=addr_match.group(2).strip().replace("\n", " "),
-                confidence=0.80,
+        address_field = self._extract_address(text, page_number)
+        if address_field:
+            fields["address"] = address_field
+
+        return fields
+
+    def _extract_gender(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        explicit = re.search(r"(?:Gender|लिंग|Sex)[:\s/]+(MALE|FEMALE|TRANSGENDER|पुरुष|महिला|तृतीयपंथी)", text, re.IGNORECASE)
+        if explicit:
+            raw_val = explicit.group(1).strip().upper()
+            norm_val = "MALE" if raw_val in {"MALE", "पुरुष"} else "FEMALE" if raw_val in {"FEMALE", "महिला"} else "TRANSGENDER" if raw_val in {"TRANSGENDER", "तृतीयपंथी"} else raw_val
+            return ExtractedField(field_name="gender", value=norm_val, confidence=0.98, page_number=page_number)
+
+        standalone = re.search(r"\b(MALE|FEMALE|TRANSGENDER|पुरुष|महिला)\b", text, re.IGNORECASE)
+        if standalone:
+            raw_val = standalone.group(1).strip().upper()
+            norm_val = "MALE" if raw_val in {"MALE", "पुरुष"} else "FEMALE" if raw_val in {"FEMALE", "महिला"} else "TRANSGENDER"
+            return ExtractedField(field_name="gender", value=norm_val, confidence=0.95, page_number=page_number)
+        return None
+
+    def _parse_and_validate_date(self, raw_date_str: str) -> Optional[str]:
+        cleaned = re.sub(r"\s+", "", raw_date_str).replace("-", "/").replace(".", "/")
+        parts = cleaned.split("/")
+        if len(parts) == 3:
+            try:
+                d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+                if 1 <= d <= 31 and 1 <= m <= 12 and 1900 <= y <= 2025:
+                    return f"{d:02d}/{m:02d}/{y:04d}"
+            except ValueError:
+                pass
+        return None
+
+    def _extract_dob(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # 1. Regex search across normalized text for labeled DOB
+        dob_labeled = re.search(
+            r"(?:DOB|Date\s+of\s+Birth|Birth\s+Date|D\.?\s*O\.?\s*B\.?|जन्म\s*तिथि|जन्म\s*तारीख|जन्म\s*दिनांक)[\s/:\-–—\n]+(\d{1,2}\s*[/.\-\s]\s*\d{1,2}\s*[/.\-\s]\s*\d{4})",
+            text,
+            re.IGNORECASE,
+        )
+        if dob_labeled:
+            parsed = self._parse_and_validate_date(dob_labeled.group(1))
+            if parsed:
+                return ExtractedField(field_name="dob", value=parsed, confidence=0.95, page_number=page_number)
+
+        # 2. Line-by-line lookahead if label and date are split across lines
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        for idx, line in enumerate(lines):
+            if re.search(r"\b(?:DOB|Date\s+of\s+Birth|Birth\s+Date|D\.?\s*O\.?\s*B\.?|जन्म\s*तिथि|जन्म\s*तारीख|जन्म\s*दिनांक)\b", line, re.IGNORECASE):
+                date_match = re.search(r"(\d{1,2}\s*[/.\-\s]\s*\d{1,2}\s*[/.\-\s]\s*\d{4})", line)
+                if date_match:
+                    parsed = self._parse_and_validate_date(date_match.group(1))
+                    if parsed:
+                        return ExtractedField(field_name="dob", value=parsed, confidence=0.95, page_number=page_number)
+                for next_idx in range(idx + 1, min(len(lines), idx + 3)):
+                    next_line = lines[next_idx]
+                    date_match = re.search(r"(\d{1,2}\s*[/.\-\s]\s*\d{1,2}\s*[/.\-\s]\s*\d{4})", next_line)
+                    if date_match:
+                        parsed = self._parse_and_validate_date(date_match.group(1))
+                        if parsed:
+                            return ExtractedField(field_name="dob", value=parsed, confidence=0.92, page_number=page_number)
+
+        # 3. Year of birth patterns
+        yob_labeled = re.search(
+            r"(?:Year\s+of\s+Birth|YOB|जन्म\s*का\s*वर्ष|जन्म\s*वर्ष)[\s/:\-–—\n]+(\d{4})",
+            text,
+            re.IGNORECASE,
+        )
+        if yob_labeled:
+            year = yob_labeled.group(1).strip()
+            if 1900 <= int(year) <= 2025:
+                return ExtractedField(field_name="dob", value=year, confidence=0.90, page_number=page_number)
+
+        # 4. Fallback search for standalone date in document
+        for match in re.finditer(r"\b(0?[1-9]|[12]\d|3[01])\s*[/.-]\s*(0?[1-9]|1[0-2])\s*[/.-]\s*(19\d{2}|20[0-2]\d)\b", text):
+            start_ctx = max(0, match.start() - 30)
+            context = text[start_ctx:match.start()].lower()
+            if any(k in context for k in ["download", "generation", "issued", "valid", "update"]):
+                continue
+            parsed = self._parse_and_validate_date(match.group(0))
+            if parsed:
+                return ExtractedField(field_name="dob", value=parsed, confidence=0.85, page_number=page_number)
+
+        return None
+
+    def _extract_masked_aadhaar(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        full_match = re.search(r"\b(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})\b", text)
+        if full_match:
+            last4 = full_match.group(3)
+            return ExtractedField(
+                field_name="masked_aadhaar",
+                value=f"XXXX-XXXX-{last4}",
+                confidence=0.95,
                 page_number=page_number,
             )
 
-        return fields
+        masked_match = re.search(r"\b(?:[xX]{4}|[•*]{4})[\s-]*(?:[xX]{4}|[•*]{4})[\s-]*(\d{4})\b", text)
+        if masked_match:
+            last4 = masked_match.group(1)
+            return ExtractedField(
+                field_name="masked_aadhaar",
+                value=f"XXXX-XXXX-{last4}",
+                confidence=0.95,
+                page_number=page_number,
+            )
+
+        cont_match = re.search(r"(?<!\d)(\d{12})(?!\d)", text)
+        if cont_match:
+            last4 = cont_match.group(1)[-4:]
+            return ExtractedField(
+                field_name="masked_aadhaar",
+                value=f"XXXX-XXXX-{last4}",
+                confidence=0.92,
+                page_number=page_number,
+            )
+
+        return None
+
+    def _is_valid_name(self, candidate: str) -> bool:
+        if not candidate:
+            return False
+        cand = candidate.strip()
+        
+        # Reject candidates containing metadata delimiters or symbols
+        if re.search(r"[:;@=<>_{}[\]~*^%$#+\\/0-9]", cand):
+            return False
+        if re.search(r"\b(?:http|https|www|\.com|\.in|\.gov|\.org)\b", cand, re.IGNORECASE):
+            return False
+
+        # Extract alphabetic words
+        words = re.findall(r"[A-Za-z]+", cand)
+        if not words or len(words) > 5:
+            return False
+
+        full_str = " ".join(words)
+        if len(full_str) < 3 or len(full_str) > 40:
+            return False
+
+        # Check disallowed words
+        lower_words = [w.lower() for w in words]
+        for w in lower_words:
+            if w in DISALLOWED_NAME_WORDS:
+                return False
+
+        # Check whole phrase blacklist
+        lower_full = full_str.lower()
+        for phrase in [
+            "government of india", "unique identification", "authority of india",
+            "bharat sarkar", "mera aadhaar", "meri pehchan", "date of birth",
+            "proof of identity", "keep your mobile", "helpdesk",
+        ]:
+            if phrase in lower_full:
+                return False
+
+        # If 1-word candidate:
+        if len(words) == 1:
+            w = words[0]
+            if len(w) < 3:
+                return False
+            if not (w.isupper() or (w[0].isupper() and w[1:].islower())):
+                return False
+
+        return True
+
+    def _clean_name(self, candidate: str) -> str:
+        cand = candidate.strip()
+        cand = re.sub(r"^[^A-Za-z]+", "", cand)
+        cand = re.sub(r"[^A-Za-z\s.'-]", "", cand)
+        return " ".join(cand.split())
+
+    def _extract_name(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # Strategy 1: Explicit Label "Name: John Doe" or "नाम: John Doe"
+        explicit = re.search(r"(?:Name|नाम)\s*[:\s-]+\s*([A-Za-z\s.'-]{3,40})(?=\n|$)", text, re.IGNORECASE)
+        if explicit and self._is_valid_name(explicit.group(1)):
+            return ExtractedField(
+                field_name="name",
+                value=self._clean_name(explicit.group(1)),
+                confidence=0.95,
+                page_number=page_number,
+            )
+
+        # Strategy 2: e-Aadhaar "To," block
+        to_match = re.search(r"\bTo[\s,]*\n+([A-Za-z\s.'-]{3,40})(?=\n|$)", text, re.IGNORECASE)
+        if to_match and self._is_valid_name(to_match.group(1)):
+            return ExtractedField(
+                field_name="name",
+                value=self._clean_name(to_match.group(1)),
+                confidence=0.92,
+                page_number=page_number,
+            )
+
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+        # Strategy 3: Line preceding DOB / Gender / Relation
+        for idx, line in enumerate(lines):
+            if re.search(r"(DOB|Date\s+of\s+Birth|Birth\s+Date|जन्म\s*तिथि|जन्म\s*तारीख|\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b|लिंग|Gender|\b(?:MALE|FEMALE|TRANSGENDER)\b)", line, re.IGNORECASE):
+                for back_idx in range(idx - 1, max(-1, idx - 4), -1):
+                    cand = lines[back_idx]
+                    if self._is_valid_name(cand):
+                        return ExtractedField(
+                            field_name="name",
+                            value=self._clean_name(cand),
+                            confidence=0.88,
+                            page_number=page_number,
+                        )
+
+        # Strategy 4: Line following Government of India / Bharat Sarkar header
+        for idx, line in enumerate(lines):
+            if re.search(r"(Government\s+of\s+India|भारत\s+सरकार|Unique\s+Identification\s+Authority)", line, re.IGNORECASE):
+                for fwd_idx in range(idx + 1, min(len(lines), idx + 4)):
+                    cand = lines[fwd_idx]
+                    if self._is_valid_name(cand):
+                        return ExtractedField(
+                            field_name="name",
+                            value=self._clean_name(cand),
+                            confidence=0.85,
+                            page_number=page_number,
+                        )
+
+        # Strategy 5: Line preceding relation marker S/O, D/O, W/O, C/O
+        for idx, line in enumerate(lines):
+            if re.search(r"\b(?:S/O|D/O|W/O|C/O|Care\s+of)[:\s]", line, re.IGNORECASE) and idx > 0:
+                cand = lines[idx - 1]
+                if self._is_valid_name(cand):
+                    return ExtractedField(
+                        field_name="name",
+                        value=self._clean_name(cand),
+                        confidence=0.85,
+                        page_number=page_number,
+                    )
+
+        return None
+
+    def _is_address_boilerplate(self, line_or_text: str) -> bool:
+        lower = line_or_text.lower()
+        return any(re.search(pat, lower) for pat in ADDRESS_BOILERPLATE_PATTERNS)
+
+    def _validate_address(self, addr_str: str) -> bool:
+        if not addr_str or len(addr_str) < 12:
+            return False
+        if self._is_address_boilerplate(addr_str):
+            return False
+
+        has_pin = bool(re.search(r"\b[1-9]\d{5}\b", addr_str))
+        has_address_keywords = bool(re.search(
+            r"\b(street|road|nagar|colony|sector|house|flat|building|floor|layout|cross|lane|"
+            r"apartment|near|opp|opposite|behind|district|city|state|village|taluk|tehsil|"
+            r"post|po|ps|dist|s/o|w/o|c/o|d/o|bhavan|marg|gali|ward|bengaluru|bangalore|"
+            r"chennai|mumbai|delhi|kolkata|hyderabad|karnataka|tamil\s+nadu|maharashtra|"
+            r"kerala|telangana|andhra\s+pradesh|uttar\s+pradesh|west\s+bengal|rajasthan|"
+            r"gujarat|punjab|haryana|bihar|odisha|assam|jharkhand|uttarakhand|goa)\b",
+            addr_str,
+            re.IGNORECASE,
+        ))
+
+        if has_pin and (has_address_keywords or len(addr_str) >= 20):
+            return True
+        if has_address_keywords and len(addr_str) >= 25:
+            return True
+
+        return False
+
+    def _clean_address_lines(self, lines: list[str]) -> list[str]:
+        cleaned = []
+        for line in lines:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if self._is_address_boilerplate(line_str):
+                break
+            if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_str):
+                break
+            line_str = re.sub(r"^(?:Address|पता|Address\s*-\s*|पता\s*-\s*)[:\s-]*", "", line_str, flags=re.IGNORECASE).strip()
+            clean_l = line_str.rstrip(",; ")
+            if clean_l and not self._is_address_boilerplate(clean_l):
+                cleaned.append(clean_l)
+            if re.search(r"\b[1-9]\d{5}\b", line_str):
+                break
+        return cleaned
+
+    def _extract_address(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # 1. Search for English Address block
+        lines = text.split("\n")
+        address_lines = []
+        in_address = False
+
+        for idx, line in enumerate(lines):
+            line_stripped = line.strip()
+            if not in_address:
+                if re.search(r"^(?:Address|Address\s*[:\s-])", line_stripped, re.IGNORECASE):
+                    if self._is_address_boilerplate(line_stripped):
+                        continue
+                    in_address = True
+                    address_lines.append(line_stripped)
+                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                        break
+            else:
+                if not line_stripped:
+                    if idx + 1 < len(lines) and not lines[idx + 1].strip():
+                        break
+                    continue
+                if self._is_address_boilerplate(line_stripped):
+                    break
+                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
+                    break
+                address_lines.append(line_stripped)
+                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                    break
+
+        if address_lines:
+            cleaned = self._clean_address_lines(address_lines)
+            if cleaned:
+                addr_str = ", ".join(cleaned)
+                addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
+                addr_str = re.sub(r"\s+", " ", addr_str).strip()
+                if self._validate_address(addr_str):
+                    return ExtractedField(field_name="address", value=addr_str, confidence=0.88, page_number=page_number)
+
+        # 2. Search for Hindi / General पता block
+        address_lines = []
+        in_address = False
+        for idx, line in enumerate(lines):
+            line_stripped = line.strip()
+            if not in_address:
+                if re.search(r"^(?:पता|पता\s*[:\s-])", line_stripped, re.IGNORECASE):
+                    if self._is_address_boilerplate(line_stripped):
+                        continue
+                    in_address = True
+                    address_lines.append(line_stripped)
+                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                        break
+            else:
+                if not line_stripped:
+                    if idx + 1 < len(lines) and not lines[idx + 1].strip():
+                        break
+                    continue
+                if self._is_address_boilerplate(line_stripped):
+                    break
+                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
+                    break
+                address_lines.append(line_stripped)
+                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                    break
+
+        if address_lines:
+            cleaned = self._clean_address_lines(address_lines)
+            if cleaned:
+                addr_str = ", ".join(cleaned)
+                addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
+                addr_str = re.sub(r"\s+", " ", addr_str).strip()
+                if self._validate_address(addr_str):
+                    return ExtractedField(field_name="address", value=addr_str, confidence=0.82, page_number=page_number)
+
+        # 3. Search for C/O, S/O, D/O, W/O block with PIN code
+        address_lines = []
+        in_address = False
+        for idx, line in enumerate(lines):
+            line_stripped = line.strip()
+            if not in_address:
+                if re.search(r"^(?:S/O|D/O|W/O|C/O|Care\s+of)[:\s]", line_stripped, re.IGNORECASE):
+                    if self._is_address_boilerplate(line_stripped):
+                        continue
+                    in_address = True
+                    address_lines.append(line_stripped)
+                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                        break
+            else:
+                if not line_stripped or self._is_address_boilerplate(line_stripped):
+                    break
+                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
+                    break
+                address_lines.append(line_stripped)
+                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                    break
+
+        if address_lines:
+            cleaned = self._clean_address_lines(address_lines)
+            if cleaned:
+                addr_str = ", ".join(cleaned)
+                addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
+                addr_str = re.sub(r"\s+", " ", addr_str).strip()
+                if self._validate_address(addr_str):
+                    return ExtractedField(field_name="address", value=addr_str, confidence=0.82, page_number=page_number)
+
+        return None

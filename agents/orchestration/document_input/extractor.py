@@ -24,7 +24,7 @@ from .schema import (
 
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
 MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024
-REQUIRED_FIELDS = ("name", "existing_address")
+REQUIRED_FIELDS = ("name", "date_of_birth", "existing_address")
 
 
 class UnavailableOCREngine(BaseOCREngine):
@@ -124,6 +124,26 @@ class AadhaarDocumentExtractor:
             direct_text = "\n".join(page.raw_text for page in parsed.pages)
             if direct_text.strip() and not parsed.is_ocr_required:
                 return direct_text, None
+
+            # Scanned PDF: render pages to images and run OCR
+            try:
+                import io
+                import pypdfium2 as pdfium
+                pdf = pdfium.PdfDocument(document.content)
+                ocr_texts = []
+                for page in pdf:
+                    img = page.render(scale=2.0).to_pil()
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    page_text, conf = self.ocr_engine.extract_text_from_image(buf.getvalue())
+                    if page_text.strip():
+                        ocr_texts.append(page_text)
+                combined_ocr = "\n".join(ocr_texts)
+                if combined_ocr.strip():
+                    return combined_ocr, None
+            except Exception:
+                pass
+
             text, confidence = self.ocr_engine.extract_text_from_image(document.content)
             if text.strip() and confidence > 0.0:
                 return text, None

@@ -139,7 +139,7 @@ def test_request_safety_gates(change, text):
 
 def test_expired_and_revoked_authorization():
     expired, adapter = make_request()
-    expired.execution_authorization.expires_at = NOW - timedelta(seconds=1)
+    expired.execution_authorization.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     assert run(expired, adapter).status == ExecutionStatus.BLOCKED
 
     revoked, adapter = make_request()
@@ -184,13 +184,11 @@ def test_missing_fact_and_missing_provenance():
 
 def test_dependency_violation():
     request, adapter = make_request()
-    request.workflow_plan.steps[0].step_type = StepType.PREPARE_INFORMATION
-    request.workflow_plan.approval_points = []
-    request.execution_authorization.satisfied_approval_step_ids = []
+    request.workflow_plan.steps[1].depends_on = ["missing-step"]
     result = run(request, adapter)
 
     assert result.status == ExecutionStatus.BLOCKED
-    assert "dependency" in (result.failure_reason or "")
+    assert "dependency" in (result.failure_reason or "").lower()
 
 
 def test_human_intervention_pauses_execution():

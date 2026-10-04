@@ -46,6 +46,7 @@ def extraction_result():
         document_id="doc-1",
         data={
             "name": {"value": "Ramesh Kumar", "confidence": 0.9, "source_document_id": "doc-1"},
+            "date_of_birth": {"value": "15/08/1985", "confidence": 0.9, "source_document_id": "doc-1"},
             "existing_address": {"value": "12 Main Street", "confidence": 0.8, "source_document_id": "doc-1"},
             "masked_aadhaar": {"value": "XXXX-XXXX-9012", "confidence": 0.95, "source_document_id": "doc-1"},
         },
