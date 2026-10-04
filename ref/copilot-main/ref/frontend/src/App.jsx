@@ -1,59 +1,20 @@
+import { HelpCircle, Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import ChatInterface from './ChatInterface';
-import ReportAnalyzer from './ReportAnalyzer';
-import { MessageSquare, FileText, Activity } from 'lucide-react';
+import AadhaarAssistant from './AadhaarAssistant';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' or 'report'
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden text-slate-200">
-      {/* Header */}
-      <header className="flex-none p-4 glass-panel m-4 mb-2 flex justify-between items-center z-10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg shadow-lg">
-            <Activity className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-              Agentic Medical System
-            </h1>
-            <p className="text-xs text-slate-400">Multi-Agent Healthcare Assistant</p>
-          </div>
-        </div>
-
-        <nav className="flex gap-2 bg-slate-800/50 p-1 rounded-lg backdrop-blur-sm border border-slate-700/50">
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all text-sm font-medium ${
-              activeTab === 'chat'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            Live Chat
-          </button>
-          <button
-            onClick={() => setActiveTab('report')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all text-sm font-medium ${
-              activeTab === 'report'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            Report Analysis
-          </button>
-        </nav>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative p-4 pt-0">
-        <div className="w-full h-full glass-panel overflow-hidden flex flex-col relative z-0">
-         {activeTab === 'chat' ? <ChatInterface /> : <ReportAnalyzer />}
-        </div>
-      </main>
+    <div className="app-frame">
+      <button className="mobile-menu-button" aria-label="Open menu" onClick={() => setMenuOpen(true)}><Menu size={19} /></button>
+      <aside className={`app-sidebar ${menuOpen ? 'open' : ''}`}>
+        <div className="sidebar-head"><div className="sidebar-badge">A</div><span className="sidebar-title">Aadhaarcare</span><button className="close-menu" aria-label="Close menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
+        <nav className="side-nav"><span className="nav-heading">YOUR SPACE</span><a className="nav-link selected" href="#assistant"><span className="nav-dot" />Address update</a><a className="nav-link" href="#coming-soon"><span className="nav-dot muted" />More services <small>soon</small></a></nav>
+        <div className="sidebar-bottom"><div className="help-card"><HelpCircle size={17} /><div><strong>Need help?</strong><span>We’ll guide you through each step.</span></div></div><span className="privacy-label">Private by design · Local prototype</span></div>
+      </aside>
+      {menuOpen && <button className="scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
+      <div className="main-column"><AadhaarAssistant /></div>
     </div>
   );
 }
