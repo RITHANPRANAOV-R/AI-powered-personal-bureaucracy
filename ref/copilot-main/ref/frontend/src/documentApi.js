@@ -11,7 +11,7 @@ async function request(path, options) {
 
 export function extractAadhaarDocument(file) {
     const formData = new FormData();
-    formData.append('document', file);
+    formData.append('file', file);
     return request('/api/documents/aadhaar/extract', {
         method: 'POST',
         body: formData,

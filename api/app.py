@@ -57,9 +57,15 @@ def create_app(
     service = document_service or AadhaarDocumentService()
 
     @app.post("/api/documents/aadhaar/extract", response_model=ExtractionResult)
-    async def extract_aadhaar(file: UploadFile = File(...)) -> ExtractionResult:
-        filename = file.filename or "uploaded-document"
-        content = await file.read(MAX_UPLOAD_BYTES + 1)
+    async def extract_aadhaar(
+        file: UploadFile | None = File(default=None),
+        document: UploadFile | None = File(default=None),
+    ) -> ExtractionResult:
+        upload = file or document
+        if upload is None:
+            raise HTTPException(status_code=422, detail="A document file is required.")
+        filename = upload.filename or "uploaded-document"
+        content = await upload.read(MAX_UPLOAD_BYTES + 1)
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="The uploaded document exceeds the supported size limit.")
         try:
@@ -67,7 +73,7 @@ def create_app(
                 AadhaarDocumentInput(
                     filename=filename,
                     content=content,
-                    mime_type=file.content_type,
+                    mime_type=upload.content_type,
                 )
             )
         except ValueError as error:

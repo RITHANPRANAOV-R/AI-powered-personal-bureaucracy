@@ -25,18 +25,33 @@ class BaseOCREngine(ABC):
 
 class PaddleOCREngine(BaseOCREngine):
     """
-    PaddleOCR implementation for user document image and scanned PDF OCR.
+    OCR implementation supporting RapidOCR (ONNX-based PP-OCR) and PaddleOCR with graceful fallback.
     """
 
     def __init__(self, lang: str = "en", use_gpu: bool = False):
         self.lang = lang
         self.use_gpu = use_gpu
+        self._rapid_ocr = None
         self._ocr = None
         self._is_available = False
 
+        # 1. Try RapidOCR (ONNX-based, fast and reliable)
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            self._rapid_ocr = RapidOCR()
+            self._is_available = True
+            logger.info("RapidOCR engine initialized successfully")
+            return
+        except Exception as e:
+            logger.debug("RapidOCR is not available: %s", e)
+
+        # 2. Try PaddleOCR as fallback
         try:
             from paddleocr import PaddleOCR
-            self._ocr = PaddleOCR(use_angle_cls=True, lang=self.lang, use_gpu=self.use_gpu, show_log=False)
+            try:
+                self._ocr = PaddleOCR(use_angle_cls=True, lang=self.lang, use_gpu=self.use_gpu)
+            except Exception:
+                self._ocr = PaddleOCR(lang=self.lang)
             self._is_available = True
             logger.info("PaddleOCR engine initialized successfully")
         except Exception as e:
@@ -44,36 +59,59 @@ class PaddleOCREngine(BaseOCREngine):
             self._is_available = False
 
     def extract_text_from_image(self, image_bytes: bytes) -> Tuple[str, float]:
-        if not self._is_available or not self._ocr:
-            logger.warning("PaddleOCR engine not active; returning empty extraction.")
+        if not self._is_available:
+            logger.warning("OCR engine not active; returning empty extraction.")
             return "", 0.0
 
-        try:
-            import io
-            import numpy as np
-            from PIL import Image
+        if self._rapid_ocr:
+            try:
+                results, _ = self._rapid_ocr(image_bytes)
+                if not results:
+                    return "", 0.0
+                extracted_lines: List[str] = []
+                scores: List[float] = []
+                for item in results:
+                    extracted_lines.append(str(item[1]))
+                    try:
+                        scores.append(float(item[2]))
+                    except (ValueError, TypeError):
+                        scores.append(0.9)
+                full_text = "\n".join(extracted_lines)
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+                return full_text, round(avg_score, 4)
+            except Exception as e:
+                logger.error(f"Error executing RapidOCR on image bytes: {e}")
+                return "", 0.0
 
-            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            img_np = np.array(img)
+        if self._ocr:
+            try:
+                import io
+                import numpy as np
+                from PIL import Image
 
-            results = self._ocr.ocr(img_np, cls=True)
+                img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                img_np = np.array(img)
 
-            extracted_lines: List[str] = []
-            scores: List[float] = []
+                results = self._ocr.ocr(img_np, cls=True)
 
-            if results and results[0]:
-                for line in results[0]:
-                    text, score = line[1]
-                    extracted_lines.append(text)
-                    scores.append(float(score))
+                extracted_lines: List[str] = []
+                scores: List[float] = []
 
-            full_text = "\n".join(extracted_lines)
-            avg_score = sum(scores) / len(scores) if scores else 0.0
-            return full_text, round(avg_score, 4)
+                if results and results[0]:
+                    for line in results[0]:
+                        text, score = line[1]
+                        extracted_lines.append(text)
+                        scores.append(float(score))
 
-        except Exception as e:
-            logger.error(f"Error executing PaddleOCR on image bytes: {e}")
-            return "", 0.0
+                full_text = "\n".join(extracted_lines)
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+                return full_text, round(avg_score, 4)
+
+            except Exception as e:
+                logger.error(f"Error executing PaddleOCR on image bytes: {e}")
+                return "", 0.0
+
+        return "", 0.0
 
 
 class MockOCREngine(BaseOCREngine):

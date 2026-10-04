@@ -6,7 +6,10 @@ from agents.knowledge_based.information_retrieval.document_understanding.extract
     DocumentClassifier,
     FieldExtractor,
 )
-from agents.knowledge_based.information_retrieval.document_understanding.ocr_engine import BaseOCREngine
+from agents.knowledge_based.information_retrieval.document_understanding.ocr_engine import (
+    BaseOCREngine,
+    PaddleOCREngine,
+)
 from agents.knowledge_based.information_retrieval.ingestion.parser import DocumentParser, ParseStatus
 from agents.knowledge_based.information_retrieval.schemas.user_document import DocumentType
 
@@ -40,7 +43,7 @@ class AadhaarDocumentExtractor:
         field_extractor: FieldExtractor | None = None,
     ):
         self.parser = parser or DocumentParser()
-        self.ocr_engine = ocr_engine or UnavailableOCREngine()
+        self.ocr_engine = ocr_engine or PaddleOCREngine()
         self.classifier = classifier or DocumentClassifier()
         self.field_extractor = field_extractor or FieldExtractor()
 

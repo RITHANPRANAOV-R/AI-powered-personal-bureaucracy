@@ -20,8 +20,10 @@ class DocumentClassifier:
 
     KEYWORD_MAP = {
         DocumentType.AADHAAR: [
-            r"unique identification authority", r"aadhaar", r"uidai",
-            r"mera aadhaar", r"enrolment no", r"\b\d{4}\s\d{4}\s\d{4}\b"
+            r"unique identification", r"authority of india", r"aadhaar", r"aadhar", r"adhar",
+            r"uidai", r"mera aadhaar", r"my aadhaar", r"enrolment", r"enrollment",
+            r"government of india", r"bharat sarkar", r"\b\d{4}\s?\d{4}\s?\d{4}\b",
+            r"\b[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}\b"
         ],
         DocumentType.PASSPORT: [
             r"republic of india", r"passport", r"passport no", r"type p"

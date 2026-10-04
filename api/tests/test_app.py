@@ -70,6 +70,21 @@ def test_upload_reaches_existing_document_service_without_raw_response():
     assert "private-document-bytes" not in response.text
 
 
+def test_upload_accepts_document_field_name():
+    extraction = extraction_result()
+    service = RecordingDocumentService(extraction)
+    client = TestClient(create_app(document_service=service, orchestrator=None))
+
+    response = client.post(
+        "/api/documents/aadhaar/extract",
+        files={"document": ("aadhaar.png", b"private-document-bytes", "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert service.extraction_calls[0].filename == "aadhaar.png"
+    assert service.extraction_calls[0].content == b"private-document-bytes"
+
+
 def test_confirmation_requires_explicit_confirmation():
     service = AadhaarDocumentService()
     client = TestClient(create_app(document_service=service, orchestrator=None))
