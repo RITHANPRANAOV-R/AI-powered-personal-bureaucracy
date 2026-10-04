@@ -1,0 +1,88 @@
+[
+    {
+        "name": "E-commerce Platform",
+        "description": "A high-scale e-commerce system with product catalogs, shopping carts, and payment integration.",
+        "architecture": "Microservices with API Gateway",
+        "workflow": [
+            "User Authentication",
+            "Product Search",
+            "Cart Management",
+            "Order Processing",
+            "Payment Gateway Integration"
+        ],
+        "components": [
+            "Auth Service",
+            "Inventory Service",
+            "Payment Service",
+            "Order Service"
+        ]
+    },
+    {
+        "name": "Real-time Chat App",
+        "description": "Secure messaging application with real-time updates and group chat capabilities.",
+        "architecture": "Event-Driven with WebSockets",
+        "workflow": [
+            "User Login",
+            "Connection Handshake",
+            "Message Broadcasting",
+            "Push Notifications"
+        ],
+        "components": [
+            "WebSocket Server",
+            "Message Broker",
+            "User Registry",
+            "Notification Engine"
+        ]
+    },
+    {
+        "name": "AI Content Generator",
+        "description": "An LLM-powered platform for generating blog posts, marketing copy, and social media content.",
+        "architecture": "Queue-based Background Task Orchestration",
+        "workflow": [
+            "Prompt Engineering",
+            "LLM Inference",
+            "Content Formatting",
+            "Draft Review"
+        ],
+        "components": [
+            "Prompt Manager",
+            "Model API Client",
+            "Celery Workers",
+            "Postgres DB"
+        ]
+    },
+    {
+        "name": "Healthcare Management System",
+        "description": "Patient records management with appointment scheduling and telemedicine features.",
+        "architecture": "Layered Monolith with Role-Based Access Control",
+        "workflow": [
+            "Patient Registration",
+            "Doctor Scheduling",
+            "Video Consultation",
+            "Prescription Generation"
+        ],
+        "components": [
+            "Patient UI",
+            "Doctor UI",
+            "Appointment Engine",
+            "Record Crypto Store"
+        ]
+    },
+    {
+        "name": "Social Media Dashboard",
+        "description": "Aggregated view of social media metrics with automated posting and sentiment analysis.",
+        "architecture": "Serverless Functions with Data Warehouse",
+        "workflow": [
+            "Data Scraping",
+            "Sentiment Analysis",
+            "Metric Aggregation",
+            "Automated Posting"
+        ],
+        "components": [
+            "API Adapters",
+            "Sentiment Agent",
+            "Analytics Aggregator",
+            "Post Scheduler"
+        ]
+    }
+]

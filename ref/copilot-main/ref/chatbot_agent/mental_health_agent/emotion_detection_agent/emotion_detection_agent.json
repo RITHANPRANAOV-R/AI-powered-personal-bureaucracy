@@ -1,0 +1,39 @@
+{
+  "name": "emotion_detector_agent",
+  "description": "Detects user emotional state and intent from text.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The user message to analyze for emotions."
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "emotion": {
+        "type": "string"
+      },
+      "confidence": {
+        "type": "number"
+      },
+      "intensity": {
+        "type": "string"
+      },
+      "intent": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "emotion",
+      "confidence"
+    ]
+  },
+  "python_class": "emotion_detector_agent.EmotionDetectorAgent",
+  "memory": false
+}

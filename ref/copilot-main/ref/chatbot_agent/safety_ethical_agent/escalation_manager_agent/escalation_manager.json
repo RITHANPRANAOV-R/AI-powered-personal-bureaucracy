@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "properties": {
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "risk_detection": {
+          "type": "object",
+          "properties": {
+            "risk_level": { "type": "string" },
+            "urgency_score": { "type": "number" },
+            "red_flags": { "type": "array", "items": { "type": "string" } },
+            "symptom_category": { "type": "string" }
+          }
+        },
+        "medical_safety": {
+          "type": "object",
+          "properties": {
+            "is_safe_to_answer": { "type": "boolean" },
+            "unsafe_reason": { "type": "string" },
+            "restricted_topics": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "overconfidence_guard": {
+          "type": "object",
+          "properties": {
+            "certainty_score": { "type": "number" },
+            "unsupported_claims": { "type": "array", "items": { "type": "string" } },
+            "hallucination_flag": { "type": "boolean" }
+          }
+        },
+        "user_context": {
+          "type": "object",
+          "properties": {
+            "age": { "type": "number" },
+            "symptoms": { "type": "array", "items": { "type": "string" } },
+            "crisis_indicators": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "escalation_level": { "type": "string" },
+        "action": { "type": "string" },
+        "message_type": { "type": "string" },
+        "final_user_message": { "type": "string" }
+      }
+    }
+  }
+}

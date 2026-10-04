@@ -1,0 +1,30 @@
+{
+  "self_harm": [
+    "hurt myself",
+    "cut myself",
+    "end it",
+    "suicide",
+    "kill myself",
+    "no reason to live",
+    "i want to disappear"
+  ],
+  "panic_attack": [
+    "i can't breathe",
+    "heart racing",
+    "shaking",
+    "hyperventilating",
+    "i feel like i'm dying"
+  ],
+  "severe_anxiety": [
+    "completely overwhelmed",
+    "losing control",
+    "can't handle this",
+    "i'm going crazy"
+  ],
+  "emotional_breakdown": [
+    "i can't take it anymore",
+    "breaking down",
+    "crying uncontrollably",
+    "everything is falling apart"
+  ]
+}

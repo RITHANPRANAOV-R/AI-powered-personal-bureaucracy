@@ -1,0 +1,7 @@
+google-adk
+sentence-transformers
+numpy
+scikit-learn
+pydantic
+rich
+python-dotenv

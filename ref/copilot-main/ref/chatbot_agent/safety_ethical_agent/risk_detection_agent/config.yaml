@@ -1,0 +1,4 @@
+name: risk_detection_agent
+version: 1.0
+description: Detects safety, self-harm, abuse, and emergency medical risks
+entrypoint: agent.RiskDetectionAgent

@@ -1,0 +1,61 @@
+[
+    {
+        "name": "Microservices",
+        "characteristics": [
+            "Decoupled services",
+            "Independent scaling",
+            "Polyglot storage"
+        ],
+        "best_for": [
+            "High-scale enterprise apps"
+        ]
+    },
+    {
+        "name": "Event-Driven",
+        "characteristics": [
+            "Message brokers",
+            "Asynchronous processing",
+            "Pub/Sub"
+        ],
+        "best_for": [
+            "Real-time updates",
+            "IoT",
+            "Chat"
+        ]
+    },
+    {
+        "name": "Serverless",
+        "characteristics": [
+            "Stateless functions",
+            "Auto-scaling",
+            "Pay-per-use"
+        ],
+        "best_for": [
+            "Variable load",
+            "Cost optimization"
+        ]
+    },
+    {
+        "name": "Layered Monolith",
+        "characteristics": [
+            "Clear separation of concerns",
+            "Single deployment unit",
+            "Shared database"
+        ],
+        "best_for": [
+            "Small to medium teams",
+            "Fast MVP"
+        ]
+    },
+    {
+        "name": "Clean Architecture",
+        "characteristics": [
+            "Business logic at core",
+            "Framework independent",
+            "Highly testable"
+        ],
+        "best_for": [
+            "Complex domain logic"
+        ]
+    }
+]
