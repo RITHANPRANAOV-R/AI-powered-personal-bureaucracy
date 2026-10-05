@@ -17,6 +17,9 @@ from agents.knowledge_based.information_retrieval.schemas.retrieval_result impor
     WarningItem,
 )
 from agents.knowledge_based.information_retrieval.sources.source_registry import SourceRegistry
+from agents.knowledge_based.information_retrieval.sources.canonical_knowledge import (
+    get_canonical_evidence_and_requirements,
+)
 from agents.knowledge_based.information_retrieval.live_retrieval.live_fetcher import (
     LiveGovernmentFetcher,
     LiveRetrievalResult,
@@ -128,6 +131,16 @@ class HybridRetriever:
 
         # 4. EVIDENCE RANKING & GROUNDING VERIFICATION
         ranked_evidence = self.ranker.rank_and_verify(fused_evidence)
+
+        # 4b. CANONICAL FALLBACK FOR COLD-START / OFFLINE ENVIRONMENTS
+        has_grounded_requirements = any(req.get("evidence_ids") for req in req_summaries)
+        if (not ranked_evidence or not req_summaries or not has_grounded_requirements) and (request.domain or "aadhaar").lower() == "aadhaar":
+            target_key = request.service or request.goal or "address"
+            can_ev, can_req, can_sources = get_canonical_evidence_and_requirements(target_key, "aadhaar")
+            if not ranked_evidence or not has_grounded_requirements:
+                ranked_evidence = can_ev
+                req_summaries = can_req
+                sources = can_sources
 
         # 5. DETERMINE RETRIEVAL STATUS
         if ranked_evidence:

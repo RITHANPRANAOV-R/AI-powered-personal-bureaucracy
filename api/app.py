@@ -13,7 +13,12 @@ from agents.orchestration.document_input import (
     AadhaarConfirmedData,
     ExtractionResult,
 )
-from agents.orchestration.pipeline import OrchestrationRequest, OrchestrationResult, TopLevelOrchestrator
+from agents.orchestration.pipeline import (
+    OrchestrationRequest,
+    OrchestrationResult,
+    TopLevelOrchestrator,
+    create_production_orchestrator,
+)
 from demo.runtime import create_demo_orchestrator
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -34,9 +39,17 @@ class ConfirmationResponse(BaseModel):
     confirmed_context: dict[str, Any]
 
 
+class LaunchBrowserRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    confirmed_context: dict[str, Any] = Field(default_factory=dict)
+    urn: str = "0000/12345/67890"
+    open_live_portal: bool = True
+
+
 def create_app(
     document_service: AadhaarDocumentService | None = None,
-    orchestrator: TopLevelOrchestrator | None = None,
+    orchestrator: Any = None,
 ) -> FastAPI:
     app = FastAPI(title="Aadhaar Assistant Local API", version="0.1.0")
     frontend_origins = [
@@ -49,12 +62,16 @@ def create_app(
     ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=frontend_origins,
+        allow_origins=frontend_origins + ["*"] if os.getenv("AADHAAR_ALLOW_ALL_ORIGINS", "1") == "1" else frontend_origins,
         allow_credentials=False,
-        allow_methods=["POST"],
-        allow_headers=["Content-Type"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
     )
     service = document_service or AadhaarDocumentService()
+
+    @app.get("/api/health")
+    async def health_check() -> dict[str, str]:
+        return {"status": "ok", "service": "aadhaar-assistant-api", "mode": _default_mode}
 
     @app.post("/api/documents/aadhaar/extract", response_model=ExtractionResult)
     async def extract_aadhaar(
@@ -93,6 +110,46 @@ def create_app(
             confirmed_context=context.model_dump(mode="json"),
         )
 
+    @app.post("/api/browser/launch-uidai")
+    async def launch_uidai_in_browser(payload: LaunchBrowserRequest) -> dict[str, Any]:
+        from agents.utility_based.execution_assistance.browser_autofill import launch_in_chromium
+        from agents.utility_based.execution_assistance.schema import ConfirmedExecutionContext
+
+        try:
+            raw_ctx = payload.confirmed_context or {}
+            session_id = raw_ctx.get("session_id") or "browser-session"
+            facts_data = raw_ctx.get("facts", {})
+            normalized_facts = {}
+            for k, v in facts_data.items():
+                if isinstance(v, dict):
+                    val = v.get("value")
+                    prov = v.get("provenance") or "user-input"
+                    stat = v.get("status") or "confirmed"
+                    allowed = v.get("allowed_for_execution", True)
+                    normalized_facts[k] = {
+                        "value": val,
+                        "provenance": prov,
+                        "status": stat,
+                        "allowed_for_execution": allowed,
+                    }
+                else:
+                    normalized_facts[k] = {
+                        "value": v,
+                        "provenance": "user-input",
+                        "status": "confirmed",
+                        "allowed_for_execution": True,
+                    }
+            doc_refs = raw_ctx.get("document_refs", [])
+            ctx = ConfirmedExecutionContext(
+                session_id=session_id,
+                facts=normalized_facts,
+                document_refs=doc_refs,
+            )
+            launched = launch_in_chromium(ctx, urn=payload.urn, open_live_portal=payload.open_live_portal)
+            return {"status": "ok", "launched": launched}
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=f"Failed to launch browser: {error}")
+
     @app.post("/api/orchestration/run", response_model=OrchestrationResult)
     async def run_orchestration(payload: OrchestrationRequest) -> OrchestrationResult:
         if orchestrator is None:
@@ -105,4 +162,11 @@ def create_app(
     return app
 
 
-app = create_app(orchestrator=create_demo_orchestrator())
+_default_mode = os.getenv("AADHAAR_RUNTIME_MODE", "uidai").lower()
+_default_orchestrator = (
+    create_demo_orchestrator()
+    if _default_mode == "demo"
+    else create_production_orchestrator(require_otp=True)
+)
+
+app = create_app(orchestrator=_default_orchestrator)

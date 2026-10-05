@@ -58,7 +58,7 @@ class ExecutionIntegrationService:
                 blocking_reason="Workflow plan requires user information before execution.",
                 warnings=list(plan.warnings),
             )
-        if plan.plan_status != PlanStatus.READY:
+        if plan.plan_status not in {PlanStatus.READY, PlanStatus.PARTIAL}:
             return IntegrationResult(
                 **base,
                 status=IntegrationStatus.BLOCKED_BY_PLAN,
@@ -66,7 +66,7 @@ class ExecutionIntegrationService:
                 warnings=list(plan.warnings),
             )
 
-        compliance_decision, compliance_error = self._validate_compliance(plan)
+        compliance_decision, compliance_error = self._validate_compliance(plan, request.confirmed_context)
         if compliance_error:
             return IntegrationResult(
                 **base,
@@ -96,11 +96,21 @@ class ExecutionIntegrationService:
             warnings=list(plan.warnings),
         )
 
-    def _validate_compliance(self, plan: WorkflowPlan) -> tuple[ComplianceDecision | None, str | None]:
+    def _validate_compliance(
+        self,
+        plan: WorkflowPlan,
+        confirmed_context: Optional[ConfirmedExecutionContext] = None,
+    ) -> tuple[ComplianceDecision | None, str | None]:
         if self.compliance_validator is None:
             return None, "Compliance decision is unavailable."
         try:
-            decision = self.compliance_validator.validate(plan)
+            import inspect
+
+            sig = inspect.signature(self.compliance_validator.validate)
+            if len(sig.parameters) >= 2:
+                decision = self.compliance_validator.validate(plan, confirmed_context)
+            else:
+                decision = self.compliance_validator.validate(plan)
         except Exception as error:
             return None, f"Compliance validation failed: {error}"
         if decision is None:

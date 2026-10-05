@@ -32,7 +32,11 @@ class LocalEmbeddingService:
                 logger.info(f"Loading local embedding model: {self.model_name}")
                 self._model = SentenceTransformer(self.model_name)
             except Exception as e:
-                raise EmbeddingError(f"Failed to load local embedding model '{self.model_name}': {e}")
+                logger.warning(f"Default model load failed ({e}), falling back to CPU device.")
+                try:
+                    self._model = SentenceTransformer(self.model_name, device="cpu")
+                except Exception as cpu_err:
+                    raise EmbeddingError(f"Failed to load local embedding model '{self.model_name}': {cpu_err}") from cpu_err
         return self._model
 
     def embed_text(self, text: str) -> List[float]:

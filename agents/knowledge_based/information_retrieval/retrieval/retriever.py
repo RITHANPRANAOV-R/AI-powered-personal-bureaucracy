@@ -90,18 +90,20 @@ class VectorRetriever:
         requirement_summaries: List[Dict[str, Any]] = []
 
         for q in constructed_queries:
-            req_summary = {
-                "requirement_id": q.requirement_id,
-                "category": q.category,
-                "query": q.normalized_query,
-            }
-            requirement_summaries.append(req_summary)
-
             try:
                 hits = self.vector_store.query_similar(q.normalized_query, top_k=effective_top_k)
             except Exception as e:
                 logger.error(f"Vector search failed for query '{q.normalized_query}': {e}")
                 hits = []
+
+            req_summary = {
+                "requirement_id": q.requirement_id,
+                "category": q.category,
+                "description": q.raw_query,
+                "query": q.normalized_query,
+                "evidence_ids": [hit["chunk_id"] for hit in hits],
+            }
+            requirement_summaries.append(req_summary)
 
             for hit in hits:
                 chunk_id = hit["chunk_id"]

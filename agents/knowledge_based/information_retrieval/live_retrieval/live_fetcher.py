@@ -121,7 +121,7 @@ class LiveGovernmentFetcher:
 
         for attempt in range(retries + 1):
             try:
-                with httpx.Client(headers=headers, follow_redirects=True, timeout=timeout) as client:
+                with httpx.Client(headers=headers, follow_redirects=True, timeout=timeout, verify=False) as client:
                     response = client.get(source.url)
                     return self._process_response(source, response)
             except httpx.TimeoutException as e:

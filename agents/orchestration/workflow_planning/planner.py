@@ -267,6 +267,8 @@ def _requirement_steps(requirements: list[dict[str, Any]], evidence: dict[str, A
             continue
         category = str(raw.get("category") or "requirement").casefold()
         step_type = StepType.PREPARE_DOCUMENT if any(word in category or word in text.casefold() for word in ("document", "proof")) else StepType.PREPARE_INFORMATION
+        req_fact_keys = list(raw.get("required_fact_keys") or [])
+        req_doc_refs = list(raw.get("required_document_refs") or [])
         steps.append(
             PlanStep(
                 step_id=f"requirement-{requirement_id}",
@@ -275,6 +277,9 @@ def _requirement_steps(requirements: list[dict[str, Any]], evidence: dict[str, A
                 description=text,
                 step_type=step_type,
                 status=StepStatus.READY,
+                depends_on=[],
+                required_fact_keys=req_fact_keys,
+                required_document_refs=req_doc_refs,
                 evidence_ids=valid_ids,
                 evidence_support=EvidenceSupport.SUPPORTED,
                 requires_user_action=True,

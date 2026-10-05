@@ -109,7 +109,7 @@ class TopLevelOrchestrator:
                 OrchestrationStatus.NEEDS_CLARIFICATION,
                 "Workflow planning requires additional user information.",
             )
-        if workflow_plan.plan_status != PlanStatus.READY:
+        if workflow_plan.plan_status not in {PlanStatus.READY, PlanStatus.PARTIAL}:
             return self._finish(
                 result,
                 OrchestrationStatus.PLANNING_FAILED,
@@ -157,13 +157,14 @@ class TopLevelOrchestrator:
             entity.entity_type: entity.normalized_value
             for entity in intent_result.entities
         }
+        service = intent_result.update_type or user_request.domain.title()
         return RetrievalRequest(
             request_id=user_request.session_id,
             goal=intent_result.summary,
-            service=user_request.domain.title(),
+            service=service,
             domain=user_request.domain,
             entities=entities,
-            user_documents=user_documents,
+            user_documents=list(user_documents) if user_documents is not None else [],
         )
 
     def _finish(

@@ -1,0 +1,75 @@
+{
+  "domain": "aadhaar",
+  "authority": "UIDAI",
+  "services": [
+    {
+      "service_type": "address",
+      "service_name": "Aadhaar Address Update",
+      "online_available": true,
+      "requirements": [
+        {
+          "requirement_id": "address-proof",
+          "category": "document",
+          "description": "Upload a valid Proof of Address document (e.g. Passport, Bank Passbook, Voter ID, Utility Bill).",
+          "required_document_refs": ["address-proof"],
+          "required_fact_keys": ["address"]
+        }
+      ]
+    },
+    {
+      "service_type": "name",
+      "service_name": "Aadhaar Name Correction",
+      "online_available": true,
+      "requirements": [
+        {
+          "requirement_id": "identity-proof",
+          "category": "document",
+          "description": "Upload a valid Proof of Identity document with photograph (e.g. Passport, PAN card, Voter ID).",
+          "required_document_refs": ["identity-proof"],
+          "required_fact_keys": ["name"]
+        }
+      ]
+    },
+    {
+      "service_type": "date_of_birth",
+      "service_name": "Aadhaar Date of Birth Update",
+      "online_available": true,
+      "requirements": [
+        {
+          "requirement_id": "dob-proof",
+          "category": "document",
+          "description": "Upload an official Date of Birth proof (e.g. Birth Certificate, SSLC Book/Certificate, Passport).",
+          "required_document_refs": ["dob-proof"],
+          "required_fact_keys": ["date_of_birth"]
+        }
+      ]
+    },
+    {
+      "service_type": "mobile_number",
+      "service_name": "Aadhaar Mobile Number Link / Update",
+      "online_available": false,
+      "notes": "Requires physical biometric authentication at nearest Aadhaar Seva Kendra.",
+      "requirements": [
+        {
+          "requirement_id": "biometric-auth",
+          "category": "biometric",
+          "description": "Visit nearest Aadhaar Seva Kendra for mandatory biometric verification.",
+          "required_fact_keys": ["mobile_number"]
+        }
+      ]
+    },
+    {
+      "service_type": "status_inquiry",
+      "service_name": "Aadhaar Update Status Check",
+      "online_available": true,
+      "requirements": [
+        {
+          "requirement_id": "urn-reference",
+          "category": "information",
+          "description": "Provide 14-digit Update Request Number (URN) or Service Request Number (SRN).",
+          "required_fact_keys": ["urn"]
+        }
+      ]
+    }
+  ]
+}

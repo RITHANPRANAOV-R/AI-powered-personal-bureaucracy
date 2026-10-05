@@ -1,0 +1,41 @@
+{
+  "service": "Aadhaar Address Update",
+  "domain": "aadhaar",
+  "authority": "UIDAI",
+  "portal": "https://myaadhaar.uidai.gov.in",
+  "overview": "Guidelines and requirements for updating address in Aadhaar online via Self Service Update Portal (SSUP) or offline at Aadhaar Seva Kendra (ASK).",
+  "requirements": [
+    {
+      "requirement_id": "address-proof",
+      "category": "document",
+      "title": "Proof of Address (PoA) Document",
+      "description": "Upload a valid Proof of Address document from the UIDAI accepted document list in PDF, PNG, or JPEG format (max 2MB for portal, up to 25MB via assistant).",
+      "accepted_documents": [
+        "Passport",
+        "Bank Statement / Passbook with Photo",
+        "Ration Card",
+        "Voter ID Card",
+        "Driving License",
+        "Electricity / Water / Gas Bill (not older than 3 months)",
+        "Registered Rent Agreement",
+        "Standard Certificate from Gazetted Officer"
+      ],
+      "required_document_refs": ["address-proof"],
+      "required_fact_keys": ["address"]
+    },
+    {
+      "requirement_id": "mobile-otp-auth",
+      "category": "authentication",
+      "title": "Aadhaar Linked Mobile OTP Authentication",
+      "description": "Registered mobile number must be active to receive a 6-digit One Time Password (OTP) for SSUP submission authentication.",
+      "required_fact_keys": ["aadhaar_otp"]
+    }
+  ],
+  "steps": [
+    "Verify existing demographic data from uploaded Aadhaar document",
+    "Select address update and enter new residential address with PIN code",
+    "Upload valid Proof of Address (PoA) supporting document",
+    "Authenticate submission using 6-digit OTP sent to registered mobile number",
+    "Obtain 14-digit Update Request Number (URN) to track update status"
+  ]
+}

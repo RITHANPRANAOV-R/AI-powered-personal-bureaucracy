@@ -2,6 +2,7 @@ from .adapter import ExecutionAdapter, MockExecutionAdapter
 from .authorization import validate_authorization
 from .context_validator import validate_context
 from .executor import ExecutionAgent, ExecutionCoordinator
+from .uidai_adapter import UIDAIExecutionAdapter
 from .schema import (
     AdapterResult,
     AdapterStatus,
@@ -42,6 +43,7 @@ __all__ = [
     "ResumeCheckpoint",
     "StepExecutionResult",
     "StepExecutionStatus",
+    "UIDAIExecutionAdapter",
     "validate_authorization",
     "validate_context",
 ]

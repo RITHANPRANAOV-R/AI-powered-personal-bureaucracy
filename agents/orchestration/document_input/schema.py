@@ -78,12 +78,15 @@ class AadhaarConfirmedData(BaseModel):
             field = getattr(self, field_name)
             if field is None:
                 continue
-            facts[field_name] = ConfirmedFact(
+            fact = ConfirmedFact(
                 value=field.value,
                 provenance=field.provenance.value,
                 status=FactStatus.CONFIRMED,
                 allowed_for_execution=True,
             )
+            facts[field_name] = fact
+            if field_name == "existing_address":
+                facts["address"] = fact
         return ConfirmedExecutionContext(
             session_id=session_id,
             application_id=application_id,

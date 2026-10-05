@@ -40,3 +40,15 @@ export function runAadhaarPipeline({ message, confirmedContext, sessionId }) {
         }),
     });
 }
+
+export function launchUidaiBrowser(confirmedContext, urn = "0000/12345/67890", openLivePortal = true) {
+    return request('/api/browser/launch-uidai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            confirmed_context: confirmedContext,
+            urn,
+            open_live_portal: openLivePortal,
+        }),
+    });
+}

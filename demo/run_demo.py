@@ -224,7 +224,6 @@ def build_demo(scenario: str) -> DemoRuntime:
         agent=compliance_agent,
         validation_input=compliance_input,
         policy_version="demo-compliance-v1",
-        authorized_step_ids=list(EXECUTABLE_STEP_IDS),
     )
     integration = ExecutionIntegrationService(
         executor=ExecutionCoordinator(execution),
