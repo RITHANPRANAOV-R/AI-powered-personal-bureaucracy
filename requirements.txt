@@ -1,10 +1,33 @@
+# Core & Data Models
 pydantic>=2.10.0
+python-dotenv>=1.0.0
 httpx>=0.28.0
-beautifulsoup4>=4.12.0
+
+# API & Web Framework
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.12
+
+# Document & PDF Processing / OCR
 pypdf>=5.1.0
-chromadb>=0.6.0
-sentence-transformers>=3.0.0
+pypdfium2>=4.30.0
+pillow>=10.4.0
+numpy>=1.26.0
 paddleocr>=2.8.0
 rapidocr-onnxruntime>=1.2.0
-google-adk
-python-dotenv
+
+# Retrieval & Embeddings
+beautifulsoup4>=4.12.0
+chromadb>=0.6.0
+sentence-transformers>=3.0.0
+
+# Agents & AI Framework
+google-adk>=2.11.0
+google-genai>=1.0.0
+
+# Browser Automation
+playwright>=1.48.0
+
+# Testing & Utilities
+pytest>=8.0.0
+reportlab>=4.2.0
