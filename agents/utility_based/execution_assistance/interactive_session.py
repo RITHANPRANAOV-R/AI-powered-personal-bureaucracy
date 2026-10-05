@@ -147,11 +147,53 @@ class InteractivePortalManager:
                 "message": "Official UIDAI Login page launched in Chromium. Please enter CAPTCHA in the browser, then click 'Send OTP to Mobile' here in the app.",
             }
 
+    def _parse_address_components(self, facts: Dict[str, Any]) -> Dict[str, str]:
+        new_addr = str(facts.get("new_address") or facts.get("address") or facts.get("existing_address") or "")
+        pincode = str(facts.get("pincode") or "")
+        house = str(facts.get("house_no") or facts.get("house") or facts.get("building") or facts.get("flat") or "")
+        street = str(facts.get("street") or facts.get("road") or facts.get("lane") or "")
+        landmark = str(facts.get("landmark") or "")
+        area = str(facts.get("locality") or facts.get("area") or facts.get("sector") or "")
+        city = str(facts.get("city") or facts.get("town") or facts.get("vtc") or "")
+        care_of = str(facts.get("care_of") or facts.get("guardian") or facts.get("father_name") or facts.get("name") or "")
+
+        import re
+        if not pincode and new_addr:
+            m_pin = re.search(r'\b\d{6}\b', new_addr)
+            if m_pin:
+                pincode = m_pin.group(0)
+
+        if not care_of and new_addr:
+            m_co = re.search(r'\b(C/O|S/O|W/O|D/O|Care\s+of)\s*[:\-]?\s*([^,\n]+)', new_addr, re.IGNORECASE)
+            if m_co:
+                care_of = m_co.group(2).strip()
+
+        if not house and new_addr:
+            parts = [p.strip() for p in new_addr.split(',') if p.strip()]
+            if parts:
+                house = parts[0]
+                if len(parts) > 1 and not street:
+                    street = parts[1]
+                if len(parts) > 2 and not area:
+                    area = parts[2]
+
+        return {
+            "new_address": new_addr,
+            "pincode": pincode,
+            "house": house,
+            "street": street,
+            "landmark": landmark,
+            "area": area,
+            "city": city,
+            "care_of": care_of,
+        }
+
     async def submit_step(
         self,
         session_id: str,
         user_consent: bool,
         notes: Optional[str] = None,
+        user_inputs: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         async with self._lock:
             session = self._sessions.get(session_id)
@@ -162,6 +204,18 @@ class InteractivePortalManager:
                     current_stage=PortalStage.STAGE_1A_OTP,
                 )
                 self._sessions[session_id] = session
+
+            # Merge any user-provided quick corrections / missing inputs
+            if user_inputs:
+                from .schema import ConfirmedFact, FactStatus
+                for k, v in user_inputs.items():
+                    if v:
+                        session.context.facts[k] = ConfirmedFact(
+                            value=str(v),
+                            provenance="user-input",
+                            status=FactStatus.CONFIRMED,
+                            allowed_for_execution=True,
+                        )
 
             if not user_consent:
                 return {
@@ -177,6 +231,7 @@ class InteractivePortalManager:
                 "stage": current.value,
                 "consent_at": datetime.now(timezone.utc).isoformat(),
                 "notes": notes,
+                "user_inputs": user_inputs,
             })
 
             # Execute the browser action on the live page
@@ -300,7 +355,12 @@ class InteractivePortalManager:
                 except Exception as nav_err:
                     logger.debug(f"Direct login navigation note: {nav_err}")
 
+            # If a new tab was opened upon clicking Login, switch to it
             await page.wait_for_timeout(2000)
+            if len(context.pages) > 1:
+                page = context.pages[-1]
+                session.page = page
+                await page.bring_to_front()
 
             # Check if Session Expired screen appeared; if so, click retry/refresh
             try:
@@ -310,12 +370,23 @@ class InteractivePortalManager:
                     await page.goto(UIDAI_OFFICIAL_URL, wait_until="domcontentloaded", timeout=25000)
                     await page.wait_for_timeout(2000)
                     await self._smart_click_or_submit(page, ["Login", "Login with OTP"])
+                    await page.wait_for_timeout(2000)
+                    if len(context.pages) > 1:
+                        page = context.pages[-1]
+                        session.page = page
             except Exception as exp_check_err:
                 logger.debug(f"Session expired recovery check note: {exp_check_err}")
 
             # Autofill Aadhaar number into login UID input with realistic typing and React state sync
             try:
-                facts = {k: v.value for k, v in session.context.facts.items()}
+                def extract_fact_val(v: Any) -> str:
+                    if hasattr(v, "value"):
+                        return str(v.value or "")
+                    if isinstance(v, dict):
+                        return str(v.get("value") or "")
+                    return str(v or "")
+
+                facts = {k: extract_fact_val(v) for k, v in session.context.facts.items()}
                 aadhaar_num = (
                     facts.get("aadhaar_number")
                     or facts.get("aadhaar")
@@ -324,10 +395,10 @@ class InteractivePortalManager:
                     or ""
                 )
                 clean_aadhaar = "".join(filter(str.isdigit, str(aadhaar_num)))
-                if not clean_aadhaar:
+                if not clean_aadhaar or len(clean_aadhaar) < 12:
                     clean_aadhaar = "999912345678"
 
-                # Wait for Aadhaar input field to become ready
+                # Wait for Aadhaar input field to become ready and mounted in DOM
                 uid_selectors = [
                     'input[name="uid"]',
                     'input[placeholder*="Aadhaar" i]',
@@ -338,12 +409,22 @@ class InteractivePortalManager:
                     'input[type="text"][maxlength="14"]',
                     'input[type="text"]',
                 ]
-                
+
+                # Wait for any UID selector to be visible
+                try:
+                    await page.wait_for_selector(
+                        'input[name="uid"], input[placeholder*="Aadhaar" i], input[placeholder*="UID" i], #uid, input[type="text"]',
+                        timeout=25000,
+                        state="visible",
+                    )
+                except Exception as wait_uid_err:
+                    logger.debug(f"UID wait_for_selector notice: {wait_uid_err}")
+
                 filled = False
                 for sel in uid_selectors:
                     try:
                         loc = page.locator(sel).first
-                        if await loc.count() > 0:
+                        if await loc.count() > 0 and await loc.is_visible():
                             await loc.scroll_into_view_if_needed()
                             await loc.click()
                             await page.keyboard.press("Control+A")
@@ -453,7 +534,7 @@ class InteractivePortalManager:
 
             elif stage == PortalStage.STAGE_2_SERVICE:
                 # User clicked "Approve & Navigate to Address Section" in app:
-                # Strictly target Address Update (and NEVER Lock/Unlock Biometrics, Bank, etc.)
+                # 1. Click Address Update card on dashboard (strictly ignoring Lock/Unlock Biometrics, etc.)
                 clicked_address = False
                 try:
                     clicked_address = await page.evaluate("""
@@ -498,50 +579,159 @@ class InteractivePortalManager:
 
                 await page.wait_for_timeout(1500)
 
-                # Sub-option handler: If "Update Address (Online)" or "Proceed to Update Aadhaar" appears, click it
+                # 2. On Update options page: click "Update Aadhaar Online"
                 try:
                     await self._smart_click_or_submit(
                         page,
-                        target_texts=["Update Address (Online)", "Update Address", "Proceed to Update Aadhaar"],
+                        target_texts=["Update Aadhaar Online", "Update Address (Online)", "Update Address"],
                         selectors=[
+                            'a:has-text("Update Aadhaar Online")',
+                            'div:has-text("Update Aadhaar Online")',
                             'a:has-text("Update Address (Online)")',
-                            'button:has-text("Proceed to Update Aadhaar")',
-                            'div:has-text("Update Address (Online)")',
                         ],
                     )
                 except Exception as sub_opt_err:
-                    logger.debug(f"Sub-option click note: {sub_opt_err}")
+                    logger.debug(f"Update online option click note: {sub_opt_err}")
 
-                logger.info("Executed targeted Address Service navigation on UIDAI portal.")
+                await page.wait_for_timeout(1000)
+
+                # 3. Click "Proceed to Update Aadhaar"
+                try:
+                    await self._smart_click_or_submit(
+                        page,
+                        target_texts=["Proceed to Update Aadhaar", "Proceed", "Next"],
+                        selectors=[
+                            'button:has-text("Proceed to Update Aadhaar")',
+                            'button:has-text("Proceed")',
+                        ],
+                    )
+                except Exception as proc_err:
+                    logger.debug(f"Proceed click note: {proc_err}")
+
+                await page.wait_for_timeout(1500)
+
+                # 4. On demographic field selection screen: Select "Address" checkbox/card
+                try:
+                    await page.evaluate("""
+                        () => {
+                            const labels = Array.from(document.querySelectorAll('label, div, span, p'));
+                            for (const el of labels) {
+                                const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                                if (txt === 'address' || txt.includes('address (')) {
+                                    const parent = el.closest('div.card') || el.closest('div[role="button"]') || el.closest('label') || el;
+                                    parent.scrollIntoView();
+                                    parent.click();
+                                    const cb = parent.querySelector('input[type="checkbox"]');
+                                    if (cb && !cb.checked) {
+                                        cb.checked = true;
+                                        cb.dispatchEvent(new Event('change', { bubbles: true }));
+                                    }
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    """)
+                except Exception as addr_sel_err:
+                    logger.debug(f"Address field checkbox selection note: {addr_sel_err}")
+
+                await page.wait_for_timeout(1000)
+
+                # 5. Click the extra submit button: "Proceed to Update Aadhaar" / "Proceed" / "Submit"
+                try:
+                    await self._smart_click_or_submit(
+                        page,
+                        target_texts=["Proceed to Update Aadhaar", "Proceed", "Submit", "Next"],
+                        selectors=[
+                            'button:has-text("Proceed to Update Aadhaar")',
+                            'button:has-text("Proceed")',
+                            'button[type="submit"]',
+                        ],
+                    )
+                except Exception as final_proc_err:
+                    logger.debug(f"Final proceed to form click note: {final_proc_err}")
+
+                logger.info("Executed full Address Service selection and navigated to demographic update form.")
 
             elif stage == PortalStage.STAGE_3_ADDRESS:
                 # User clicked "Approve & Submit Address Details" in app:
-                # Fill demographic address fields
-                if new_addr:
+                # 1. If still on the field selection screen, ensure "Address" and "Proceed" are clicked
+                try:
+                    await page.evaluate("""
+                        () => {
+                            const btn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('Proceed to Update Aadhaar'));
+                            if (btn && btn.offsetParent !== null) {
+                                const addrCard = Array.from(document.querySelectorAll('div, label, span')).find(el => (el.innerText || '').trim().toLowerCase().startsWith('address'));
+                                if (addrCard) addrCard.click();
+                                btn.click();
+                            }
+                        }
+                    """)
+                    await page.wait_for_timeout(1500)
+                except Exception:
+                    pass
+
+                # 2. Parse all known demographic details
+                addr_data = self._parse_address_components(facts)
+
+                # 3. Autofill individual form fields
+                if addr_data.get("care_of"):
                     await self._smart_fill(
                         page,
-                        [
-                            'textarea[name*="address" i]',
-                            'input[name*="house" i]',
-                            'input[name*="flat" i]',
-                            'input[name*="building" i]',
-                            'input[id*="house" i]',
-                            'textarea',
-                        ],
-                        str(new_addr),
-                    )
-                if pincode:
-                    await self._smart_fill(
-                        page,
-                        [
-                            'input[name*="pincode" i]',
-                            'input[name*="pin" i]',
-                            'input[placeholder*="PIN" i]',
-                            'input[placeholder*="Pincode" i]',
-                        ],
-                        str(pincode),
+                        ['input[name*="careOf" i]', 'input[name*="co" i]', 'input[placeholder*="Care of" i]', 'input[id*="careOf" i]'],
+                        addr_data["care_of"],
                     )
 
+                if addr_data.get("house"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="house" i]', 'input[name*="flat" i]', 'input[name*="building" i]', 'input[id*="house" i]', 'textarea[name*="house" i]'],
+                        addr_data["house"],
+                    )
+
+                if addr_data.get("street"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="street" i]', 'input[name*="road" i]', 'input[name*="lane" i]', 'input[id*="street" i]'],
+                        addr_data["street"],
+                    )
+
+                if addr_data.get("landmark"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="landmark" i]', 'input[id*="landmark" i]'],
+                        addr_data["landmark"],
+                    )
+
+                if addr_data.get("area"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="area" i]', 'input[name*="locality" i]', 'input[name*="sector" i]', 'input[id*="area" i]'],
+                        addr_data["area"],
+                    )
+
+                if addr_data.get("pincode"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="pincode" i]', 'input[name*="pin" i]', 'input[placeholder*="PIN" i]', 'input[placeholder*="Pincode" i]', 'input[id*="pin" i]'],
+                        addr_data["pincode"],
+                    )
+
+                if addr_data.get("city"):
+                    await self._smart_fill(
+                        page,
+                        ['input[name*="vtc" i]', 'input[name*="city" i]', 'input[name*="town" i]'],
+                        addr_data["city"],
+                    )
+
+                if addr_data.get("new_address") and not addr_data.get("house"):
+                    await self._smart_fill(
+                        page,
+                        ['textarea[name*="address" i]', 'textarea', 'input[type="text"]'],
+                        addr_data["new_address"],
+                    )
+
+                # 4. Click Next/Proceed on the demographic form
                 await self._smart_click_or_submit(
                     page,
                     target_texts=["Next", "Proceed", "Save & Continue", "Submit", "Continue"],
@@ -553,7 +743,7 @@ class InteractivePortalManager:
                         'input[type="submit"]',
                     ],
                 )
-                logger.info("Executed Address autofill & Next action on UIDAI portal.")
+                logger.info("Autofilled address demographic form and advanced to document stage.")
 
             elif stage == PortalStage.STAGE_4_DOCUMENT:
                 # User clicked "Approve & Upload Document" in app:

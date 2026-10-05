@@ -53,6 +53,7 @@ class StepConsentRequest(BaseModel):
     session_id: str = Field(min_length=1)
     user_consent: bool = True
     notes: str | None = None
+    user_inputs: dict[str, Any] = Field(default_factory=dict)
 
 
 def create_app(
@@ -168,6 +169,7 @@ def create_app(
             session_id=payload.session_id,
             user_consent=payload.user_consent,
             notes=payload.notes,
+            user_inputs=payload.user_inputs,
         )
 
     @app.get("/api/browser/session-status/{session_id}")

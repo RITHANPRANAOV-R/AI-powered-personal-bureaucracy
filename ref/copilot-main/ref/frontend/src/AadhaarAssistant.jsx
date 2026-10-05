@@ -84,6 +84,15 @@ export default function AadhaarAssistant() {
     const [isSessionCompleted, setIsSessionCompleted] = useState(false);
     const [submittingStep, setSubmittingStep] = useState(false);
     const [launchingBrowser, setLaunchingBrowser] = useState(false);
+    const [stepAddressInputs, setStepAddressInputs] = useState({
+        new_address: '',
+        pincode: '',
+        house_no: '',
+        street: '',
+        landmark: '',
+        locality: '',
+        care_of: '',
+    });
 
     const extractionData = extraction?.data;
 
@@ -129,6 +138,17 @@ export default function AadhaarAssistant() {
         try {
             const extractedAadhaar = fieldValue(extractionData, 'aadhaar_number') || fieldValue(extractionData, 'masked_aadhaar') || '';
             const aadhaarVal = corrections.aadhaar_number || corrections.masked_aadhaar || extractedAadhaar || '999912345678';
+            const addrVal = corrections.new_address || fieldValue(extractionData, 'new_address') || corrections.existing_address || fieldValue(extractionData, 'existing_address') || '';
+            const pinVal = corrections.pincode || fieldValue(extractionData, 'pincode') || '';
+
+            setStepAddressInputs((prev) => ({
+                ...prev,
+                new_address: addrVal,
+                pincode: pinVal,
+                house_no: prev.house_no || (addrVal.split(',')[0] || ''),
+                street: prev.street || (addrVal.split(',')[1] || ''),
+                locality: prev.locality || (addrVal.split(',')[2] || ''),
+            }));
 
             const contextToUse = ctx || confirmedContext || {
                 session_id: sessionId,
@@ -136,8 +156,8 @@ export default function AadhaarAssistant() {
                     name: { value: corrections.name || fieldValue(extractionData, 'name') || 'Citizen', provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
                     aadhaar_number: { value: aadhaarVal, provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
                     existing_address: { value: corrections.existing_address || fieldValue(extractionData, 'existing_address') || '', provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
-                    new_address: { value: corrections.new_address || '', provenance: 'user-input', status: 'confirmed', allowed_for_execution: true },
-                    pincode: { value: corrections.pincode || '', provenance: 'user-input', status: 'confirmed', allowed_for_execution: true },
+                    new_address: { value: addrVal, provenance: 'user-input', status: 'confirmed', allowed_for_execution: true },
+                    pincode: { value: pinVal, provenance: 'user-input', status: 'confirmed', allowed_for_execution: true },
                     date_of_birth: { value: corrections.date_of_birth || fieldValue(extractionData, 'date_of_birth') || '', provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
                     gender: { value: corrections.gender || fieldValue(extractionData, 'gender') || 'Male', provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
                     masked_aadhaar: { value: corrections.masked_aadhaar || fieldValue(extractionData, 'masked_aadhaar') || aadhaarVal, provenance: 'extraction', status: 'confirmed', allowed_for_execution: true },
@@ -161,7 +181,7 @@ export default function AadhaarAssistant() {
         setSubmittingStep(true);
         setError('');
         try {
-            const stepResult = await submitBrowserStep(sessionId, true);
+            const stepResult = await submitBrowserStep(sessionId, true, '', stepAddressInputs);
             if (currentStageData) {
                 setCompletedStages((prev) => [...prev, currentStageData]);
             }
@@ -452,6 +472,72 @@ export default function AadhaarAssistant() {
                                     {currentStageData.requires_portal_interaction && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#fbbf24', background: 'rgba(245,158,11,0.1)', padding: '8px 10px', borderRadius: '6px', margin: '8px 0 12px' }}>
                                             <KeyRound size={15} /> <strong>UIDAI Security Notice:</strong> Enter CAPTCHA and Mobile OTP in the Chromium window, then click submit below.
+                                        </div>
+                                    )}
+
+                                    {currentStageData.id === 'stage_3_address' && (
+                                        <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '12px', margin: '12px 0' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Sparkles size={14} /> Demographic Address Fields to Prepopulate & Submit:
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>House / Flat / Building No</label>
+                                                    <input
+                                                        type="text"
+                                                        value={stepAddressInputs.house_no}
+                                                        onChange={(e) => setStepAddressInputs(prev => ({ ...prev, house_no: e.target.value }))}
+                                                        placeholder="e.g. Flat 402, Lotus Apts"
+                                                        style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Street / Road / Lane</label>
+                                                    <input
+                                                        type="text"
+                                                        value={stepAddressInputs.street}
+                                                        onChange={(e) => setStepAddressInputs(prev => ({ ...prev, street: e.target.value }))}
+                                                        placeholder="e.g. 12th Main Road"
+                                                        style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Area / Locality / Sector</label>
+                                                    <input
+                                                        type="text"
+                                                        value={stepAddressInputs.locality}
+                                                        onChange={(e) => setStepAddressInputs(prev => ({ ...prev, locality: e.target.value }))}
+                                                        placeholder="e.g. Koramangala 4th Block"
+                                                        style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>PIN Code</label>
+                                                    <input
+                                                        type="text"
+                                                        maxLength={6}
+                                                        value={stepAddressInputs.pincode}
+                                                        onChange={(e) => setStepAddressInputs(prev => ({ ...prev, pincode: e.target.value }))}
+                                                        placeholder="6-digit PIN"
+                                                        style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                                                    />
+                                                </div>
+                                                <div style={{ gridColumn: '1 / -1' }}>
+                                                    <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Full New Address (Combined)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={stepAddressInputs.new_address}
+                                                        onChange={(e) => setStepAddressInputs(prev => ({ ...prev, new_address: e.target.value }))}
+                                                        placeholder="Full combined new address..."
+                                                        style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            {(!stepAddressInputs.new_address && !stepAddressInputs.house_no) && (
+                                                <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '6px' }}>
+                                                    ⚠️ Missing detail detected: Please enter your House No or New Address above before clicking submit.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
