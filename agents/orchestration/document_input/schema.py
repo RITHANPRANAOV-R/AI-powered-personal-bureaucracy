@@ -59,7 +59,10 @@ class AadhaarExtractedData(BaseModel):
     date_of_birth: Optional[ExtractedField] = None
     gender: Optional[ExtractedField] = None
     masked_aadhaar: Optional[ExtractedField] = None
+    aadhaar_number: Optional[ExtractedField] = None
     existing_address: Optional[ExtractedField] = None
+    new_address: Optional[ExtractedField] = None
+    pincode: Optional[ExtractedField] = None
 
 
 class AadhaarConfirmedData(BaseModel):
@@ -69,13 +72,25 @@ class AadhaarConfirmedData(BaseModel):
     date_of_birth: Optional[ConfirmedField] = None
     gender: Optional[ConfirmedField] = None
     masked_aadhaar: Optional[ConfirmedField] = None
+    aadhaar_number: Optional[ConfirmedField] = None
     existing_address: Optional[ConfirmedField] = None
+    new_address: Optional[ConfirmedField] = None
+    pincode: Optional[ConfirmedField] = None
     document_id: str = Field(min_length=1)
 
     def to_execution_context(self, session_id: str, application_id: str | None = None) -> ConfirmedExecutionContext:
         facts: dict[str, ConfirmedFact] = {}
-        for field_name in ("name", "date_of_birth", "gender", "masked_aadhaar", "existing_address"):
-            field = getattr(self, field_name)
+        for field_name in (
+            "name",
+            "date_of_birth",
+            "gender",
+            "masked_aadhaar",
+            "aadhaar_number",
+            "existing_address",
+            "new_address",
+            "pincode",
+        ):
+            field = getattr(self, field_name, None)
             if field is None:
                 continue
             fact = ConfirmedFact(
@@ -85,8 +100,12 @@ class AadhaarConfirmedData(BaseModel):
                 allowed_for_execution=True,
             )
             facts[field_name] = fact
-            if field_name == "existing_address":
+            if field_name == "existing_address" and "address" not in facts:
                 facts["address"] = fact
+            elif field_name == "new_address":
+                facts["address"] = fact
+            elif field_name == "aadhaar_number" and "masked_aadhaar" not in facts:
+                facts["masked_aadhaar"] = fact
         return ConfirmedExecutionContext(
             session_id=session_id,
             application_id=application_id,

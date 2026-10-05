@@ -22,7 +22,10 @@ class AadhaarDocumentService:
         "date_of_birth",
         "gender",
         "masked_aadhaar",
+        "aadhaar_number",
         "existing_address",
+        "new_address",
+        "pincode",
     )
 
     def __init__(self, extractor: AadhaarDocumentExtractor | None = None):
@@ -48,7 +51,7 @@ class AadhaarDocumentService:
 
         confirmed_values: dict[str, ConfirmedField | None] = {}
         for field_name in self.SUPPORTED_FIELDS:
-            extracted = getattr(extraction.data, field_name)
+            extracted = getattr(extraction.data, field_name, None)
             correction = corrections.get(field_name)
             if correction is not None:
                 value = correction.strip()

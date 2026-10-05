@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,6 +45,14 @@ class LaunchBrowserRequest(BaseModel):
     confirmed_context: dict[str, Any] = Field(default_factory=dict)
     urn: str = "0000/12345/67890"
     open_live_portal: bool = True
+
+
+class StepConsentRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    session_id: str = Field(min_length=1)
+    user_consent: bool = True
+    notes: str | None = None
 
 
 def create_app(
@@ -145,10 +153,28 @@ def create_app(
                 facts=normalized_facts,
                 document_refs=doc_refs,
             )
-            launched = launch_in_chromium(ctx, urn=payload.urn, open_live_portal=payload.open_live_portal)
-            return {"status": "ok", "launched": launched}
+            from agents.utility_based.execution_assistance.interactive_session import interactive_manager
+
+            session_data = await interactive_manager.start_session(ctx, urn=payload.urn)
+            return {"status": "ok", "launched": True, **session_data}
         except Exception as error:
             raise HTTPException(status_code=400, detail=f"Failed to launch browser: {error}")
+
+    @app.post("/api/browser/submit-step")
+    async def submit_browser_step(payload: StepConsentRequest) -> dict[str, Any]:
+        from agents.utility_based.execution_assistance.interactive_session import interactive_manager
+
+        return await interactive_manager.submit_step(
+            session_id=payload.session_id,
+            user_consent=payload.user_consent,
+            notes=payload.notes,
+        )
+
+    @app.get("/api/browser/session-status/{session_id}")
+    async def get_browser_session_status(session_id: str) -> dict[str, Any]:
+        from agents.utility_based.execution_assistance.interactive_session import interactive_manager
+
+        return interactive_manager.get_session_status(session_id)
 
     @app.post("/api/orchestration/run", response_model=OrchestrationResult)
     async def run_orchestration(payload: OrchestrationRequest) -> OrchestrationResult:

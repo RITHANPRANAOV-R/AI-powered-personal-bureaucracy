@@ -52,3 +52,20 @@ export function launchUidaiBrowser(confirmedContext, urn = "0000/12345/67890", o
         }),
     });
 }
+
+export function submitBrowserStep(sessionId, userConsent = true, notes = '') {
+    return request('/api/browser/submit-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            session_id: sessionId,
+            user_consent: userConsent,
+            notes,
+        }),
+    });
+}
+
+export function getBrowserSessionStatus(sessionId) {
+    return request(`/api/browser/session-status/${sessionId}`);
+}
+
