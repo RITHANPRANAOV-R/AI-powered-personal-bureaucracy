@@ -22,7 +22,8 @@ UIDAI_LOGIN_URL = "https://tathya.uidai.gov.in/access/login?role=resident"
 
 class PortalStage(str, Enum):
     INIT = "init"
-    STAGE_1_AUTH = "stage_1_auth"
+    STAGE_1A_OTP = "stage_1a_otp"
+    STAGE_1B_LOGIN = "stage_1b_login"
     STAGE_2_SERVICE = "stage_2_service"
     STAGE_3_ADDRESS = "stage_3_address"
     STAGE_4_DOCUMENT = "stage_4_document"
@@ -32,26 +33,35 @@ class PortalStage(str, Enum):
 
 STAGE_DEFINITIONS = [
     {
-        "id": PortalStage.STAGE_1_AUTH.value,
+        "id": PortalStage.STAGE_1A_OTP.value,
         "step_number": 1,
         "title": "Resident Authentication & CAPTCHA",
-        "description": "The assistant navigated to the official UIDAI login page. Please solve the security CAPTCHA and enter your 6-digit Aadhaar OTP in the Chromium window.",
-        "action_prompt": "Click 'Submit Login Verification' once you have entered the OTP in the official window.",
-        "button_label": "Submit Login Verification",
+        "description": "Your 12-digit Aadhaar number is autofilled in Chromium. Please solve the security CAPTCHA in the browser, then click 'Send OTP to Mobile' below.",
+        "action_prompt": "Solve CAPTCHA in Chromium, then click 'Send OTP to Mobile'.",
+        "button_label": "Send OTP to Mobile",
+        "requires_portal_interaction": True,
+    },
+    {
+        "id": PortalStage.STAGE_1B_LOGIN.value,
+        "step_number": 2,
+        "title": "Enter 6-Digit OTP & Verify Login",
+        "description": "Please enter the 6-digit Aadhaar OTP received on your mobile phone in the Chromium window, then click 'Submit OTP & Access Dashboard' below.",
+        "action_prompt": "Enter the 6-digit OTP in Chromium, then click 'Submit OTP & Access Dashboard'.",
+        "button_label": "Submit OTP & Access Dashboard",
         "requires_portal_interaction": True,
     },
     {
         "id": PortalStage.STAGE_2_SERVICE.value,
-        "step_number": 2,
+        "step_number": 3,
         "title": "Select 'Address Update' Service",
-        "description": "The assistant will navigate to 'Update Aadhaar Online' -> 'Address Update' on the official UIDAI portal.",
+        "description": "The assistant will navigate to 'Address Update' on the official UIDAI portal dashboard.",
         "action_prompt": "Confirm consent to navigate to the demographic address update module.",
         "button_label": "Approve & Navigate to Address Section",
         "requires_portal_interaction": False,
     },
     {
         "id": PortalStage.STAGE_3_ADDRESS.value,
-        "step_number": 3,
+        "step_number": 4,
         "title": "Autofill Verified Address Details",
         "description": "The assistant will populate your verified House/Building, Street, PIN code, and District into the official portal form.",
         "action_prompt": "Confirm and submit these verified demographic details to the official form.",
@@ -60,7 +70,7 @@ STAGE_DEFINITIONS = [
     },
     {
         "id": PortalStage.STAGE_4_DOCUMENT.value,
-        "step_number": 4,
+        "step_number": 5,
         "title": "Attach Proof of Address Document",
         "description": "The assistant will select your supporting Proof of Address document type on the official portal.",
         "action_prompt": "Approve attaching your confirmed document to the official portal.",
@@ -69,7 +79,7 @@ STAGE_DEFINITIONS = [
     },
     {
         "id": PortalStage.STAGE_5_REVIEW.value,
-        "step_number": 5,
+        "step_number": 6,
         "title": "Final Review & Official Submission",
         "description": "Final review of demographic details and submission to the UIDAI SSUP registry.",
         "action_prompt": "Confirm final approval to submit your Aadhaar address update.",
@@ -83,7 +93,7 @@ STAGE_DEFINITIONS = [
 class ActiveBrowserSession:
     session_id: str
     context: ConfirmedExecutionContext
-    current_stage: PortalStage = PortalStage.STAGE_1_AUTH
+    current_stage: PortalStage = PortalStage.STAGE_1A_OTP
     urn: str = "0000/12345/67890"
     history: List[Dict[str, Any]] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -118,7 +128,7 @@ class InteractivePortalManager:
             session = ActiveBrowserSession(
                 session_id=session_id,
                 context=context,
-                current_stage=PortalStage.STAGE_1_AUTH,
+                current_stage=PortalStage.STAGE_1A_OTP,
                 urn=urn,
             )
             self._sessions[session_id] = session
@@ -134,7 +144,7 @@ class InteractivePortalManager:
                 "stage_info": stage_info,
                 "all_stages": STAGE_DEFINITIONS,
                 "urn": session.urn,
-                "message": "Official UIDAI Login page launched in Chromium. Please enter CAPTCHA and OTP in the browser, then click 'Submit Login Verification' here in the app.",
+                "message": "Official UIDAI Login page launched in Chromium. Please enter CAPTCHA in the browser, then click 'Send OTP to Mobile' here in the app.",
             }
 
     async def submit_step(
@@ -149,7 +159,7 @@ class InteractivePortalManager:
                 session = ActiveBrowserSession(
                     session_id=session_id,
                     context=ConfirmedExecutionContext(session_id=session_id),
-                    current_stage=PortalStage.STAGE_1_AUTH,
+                    current_stage=PortalStage.STAGE_1A_OTP,
                 )
                 self._sessions[session_id] = session
 
@@ -173,7 +183,10 @@ class InteractivePortalManager:
             await self._execute_stage_action_on_portal(session, current)
 
             # Advance stage
-            if current == PortalStage.STAGE_1_AUTH:
+            if current == PortalStage.STAGE_1A_OTP:
+                session.current_stage = PortalStage.STAGE_1B_LOGIN
+                msg = "OTP requested on official portal. Please enter the 6-digit OTP in the Chromium window, then click 'Submit OTP & Access Dashboard'."
+            elif current == PortalStage.STAGE_1B_LOGIN:
                 session.current_stage = PortalStage.STAGE_2_SERVICE
                 msg = "Login verified on official portal. Ready to navigate to Address Update module."
             elif current == PortalStage.STAGE_2_SERVICE:
@@ -391,57 +404,115 @@ class InteractivePortalManager:
             new_addr = facts.get("new_address") or facts.get("existing_address") or facts.get("address") or ""
             pincode = facts.get("pincode") or ""
 
-            if stage == PortalStage.STAGE_1_AUTH:
-                # User clicked "Submit Login Verification" in app:
-                # 1. Look for Login / Submit / Send OTP buttons and click
-                target_auth_buttons = [
-                    "Login",
+            if stage == PortalStage.STAGE_1A_OTP:
+                # User clicked "Send OTP to Mobile" in app:
+                target_otp_buttons = [
                     "Login with OTP",
                     "Send OTP",
+                    "Get OTP",
+                ]
+                await self._smart_click_or_submit(
+                    page,
+                    target_texts=target_otp_buttons,
+                    selectors=[
+                        'button:has-text("Login with OTP")',
+                        'button:has-text("Send OTP")',
+                        'button[type="submit"]',
+                    ],
+                )
+                logger.info("Executed Send OTP action on UIDAI login portal.")
+                await page.wait_for_timeout(1000)
+                try:
+                    otp_loc = page.locator('input[name="otp"], input[placeholder*="OTP" i], #otp').first
+                    if await otp_loc.count() > 0:
+                        await otp_loc.focus()
+                except Exception:
+                    pass
+
+            elif stage == PortalStage.STAGE_1B_LOGIN:
+                # User entered OTP in Chromium and clicked "Submit OTP & Access Dashboard" in app:
+                target_login_buttons = [
+                    "Login",
                     "Verify OTP",
                     "Verify & Proceed",
                     "Verify",
                     "Submit",
-                    "Proceed",
                 ]
                 await self._smart_click_or_submit(
                     page,
-                    target_texts=target_auth_buttons,
+                    target_texts=target_login_buttons,
                     selectors=[
-                        'button[type="submit"]',
                         'button:has-text("Login")',
-                        'button:has-text("Send OTP")',
-                        'button:has-text("Login with OTP")',
                         'button:has-text("Verify")',
                         'button:has-text("Submit")',
-                        'input[type="submit"]',
+                        'button[type="submit"]',
                     ],
                 )
-                logger.info("Executed Login/Submit action on UIDAI authentication page.")
+                logger.info("Executed Login/Verify OTP action on UIDAI authentication page.")
+                await page.wait_for_timeout(2500)
 
             elif stage == PortalStage.STAGE_2_SERVICE:
                 # User clicked "Approve & Navigate to Address Section" in app:
-                target_service_buttons = [
-                    "Address Update",
-                    "Update Aadhaar Online",
-                    "Update Demographic Data",
-                    "Update Address",
-                    "Online Update Services",
-                    "Head of Family",
-                    "Proceed to Update Aadhaar",
-                ]
-                await self._smart_click_or_submit(
-                    page,
-                    target_texts=target_service_buttons,
-                    selectors=[
-                        'a[href*="address"]',
-                        'a[href*="update"]',
+                # Strictly target Address Update (and NEVER Lock/Unlock Biometrics, Bank, etc.)
+                clicked_address = False
+                try:
+                    clicked_address = await page.evaluate("""
+                        () => {
+                            const candidates = Array.from(document.querySelectorAll('a, button, div, span, h3, h4, p'));
+                            for (const el of candidates) {
+                                const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                                const hasAddress = txt.includes('address update') || txt.includes('update address') || txt.includes('update aadhaar online');
+                                const isBlacklisted = txt.includes('biometric') || txt.includes('lock') || txt.includes('bank') || txt.includes('pvc') || txt.includes('download');
+                                if (hasAddress && !isBlacklisted && el.offsetParent !== null) {
+                                    const clickable = el.closest('a') || el.closest('button') || el.closest('div.card') || el.closest('div[role="button"]') || el;
+                                    clickable.scrollIntoView();
+                                    clickable.click();
+                                    clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    """)
+                except Exception as js_err:
+                    logger.debug(f"JS address card click note: {js_err}")
+
+                if not clicked_address:
+                    address_selectors = [
+                        'a[href*="address-update"]',
+                        'a[href*="/address"]',
+                        'a[href*="ssup"]',
                         'button:has-text("Address Update")',
-                        'button:has-text("Update Aadhaar Online")',
-                        'div:has-text("Address Update")',
-                    ],
-                )
-                logger.info("Executed Address Service navigation on UIDAI portal.")
+                        'div:has-text("Address Update"):not(:has-text("Biometric")):not(:has-text("Lock"))',
+                    ]
+                    for sel in address_selectors:
+                        try:
+                            loc = page.locator(sel).first
+                            if await loc.count() > 0:
+                                await loc.scroll_into_view_if_needed()
+                                await loc.click(force=True, timeout=2000)
+                                clicked_address = True
+                                break
+                        except Exception:
+                            continue
+
+                await page.wait_for_timeout(1500)
+
+                # Sub-option handler: If "Update Address (Online)" or "Proceed to Update Aadhaar" appears, click it
+                try:
+                    await self._smart_click_or_submit(
+                        page,
+                        target_texts=["Update Address (Online)", "Update Address", "Proceed to Update Aadhaar"],
+                        selectors=[
+                            'a:has-text("Update Address (Online)")',
+                            'button:has-text("Proceed to Update Aadhaar")',
+                            'div:has-text("Update Address (Online)")',
+                        ],
+                    )
+                except Exception as sub_opt_err:
+                    logger.debug(f"Sub-option click note: {sub_opt_err}")
+
+                logger.info("Executed targeted Address Service navigation on UIDAI portal.")
 
             elif stage == PortalStage.STAGE_3_ADDRESS:
                 # User clicked "Approve & Submit Address Details" in app:
