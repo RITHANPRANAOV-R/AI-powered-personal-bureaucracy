@@ -1,21 +1,68 @@
 :root {
-  --bg: #091322;
-  --panel: #162435;
-  --line: rgba(146, 181, 204, .17);
-  --cyan: #0ea5e9;
-  --mint: #10b981;
-  --pink: #f472b6;
-  color: #e2edf5;
-  background: var(--bg);
+  --gov-navy: #0d2440;
+  --gov-navy-dark: #081729;
+  --gov-navy-light: #16365c;
+  --gov-gold: #c89d38;
+  --gov-gold-light: #fef3c7;
+  --gov-gold-border: #d4af37;
+  --gov-blue: #294c6f;
+  --gov-blue-hover: #1e3b57;
+  --gov-bg: #eef2f6;
+  --gov-card-bg: #ffffff;
+  --gov-card-border: #d0dce7;
+  --gov-text: #0f233a;
+  --gov-text-muted: #536b82;
+  --gov-slate: #64748b;
+  --gov-green: #047857;
+  --gov-green-bg: #ecfdf5;
+  --gov-amber: #b45309;
+  --gov-amber-bg: #fffbeb;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-synthesis: none;
+  color: var(--gov-text);
+  background: var(--gov-bg);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
+
 * { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; background: var(--bg); }
-body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at 17% 7%, rgba(14,165,233,.15), transparent 32%), radial-gradient(circle at 85% 80%, rgba(16,185,129,.1), transparent 31%), var(--bg); }
-button, input, textarea, select { font: inherit; }
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-::selection { color: #04131d; background: #73e3dc; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--gov-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background-color: #edf2f7;
+  background-image:
+    radial-gradient(circle at 86% 22%, rgba(200, 157, 56, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 14% 65%, rgba(13, 36, 64, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.8) 0%, rgba(237, 242, 247, 0.95) 100%);
+  color: var(--gov-text);
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--gov-blue);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: #0f233a;
+  background: #fde68a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
