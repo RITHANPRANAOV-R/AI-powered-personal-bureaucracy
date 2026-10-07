@@ -86,6 +86,8 @@ def create_app(
     async def extract_aadhaar(
         file: UploadFile | None = File(default=None),
         document: UploadFile | None = File(default=None),
+        new_address: str | None = None,
+        pincode: str | None = None,
     ) -> ExtractionResult:
         upload = file or document
         if upload is None:
@@ -94,13 +96,19 @@ def create_app(
         content = await upload.read(MAX_UPLOAD_BYTES + 1)
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="The uploaded document exceeds the supported size limit.")
+        user_ctx = {}
+        if new_address:
+            user_ctx["new_address"] = new_address
+        if pincode:
+            user_ctx["pincode"] = pincode
         try:
             return service.extract(
                 AadhaarDocumentInput(
                     filename=filename,
                     content=content,
                     mime_type=upload.content_type,
-                )
+                ),
+                user_context=user_ctx if user_ctx else None,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error

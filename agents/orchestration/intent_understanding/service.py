@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from agents.orchestration.intent_understanding.extractor import extract_entities, normalize_text
+from agents.orchestration.intent_understanding.extractor import _detect_address_value, extract_entities, normalize_text
 from agents.orchestration.intent_understanding.schemas import (
     ExtractedEntity,
     IntentClassificationResult,
@@ -118,7 +118,7 @@ class IntentUnderstandingService:
         if re.search(r"\b(enroll|enrol|registration|new aadhaar)\b", normalized):
             return "enrollment"
 
-        if re.search(r"\b(update|change|modify)\b", normalized):
+        if re.search(r"\b(update|change|modify|new address)\b", normalized) or _detect_address_value(message):
             return "update_request"
 
         return "general_assistance"
@@ -143,6 +143,9 @@ class IntentUnderstandingService:
         if matches:
             return matches[0]
 
+        if any(e.entity_type == "address" for e in self._extract_entities(message, None, None, None)):
+            return "address"
+
         if context_target:
             return context_target
 
@@ -164,7 +167,7 @@ class IntentUnderstandingService:
         extracted = [ExtractedEntity(**entity) for entity in extract_entities(message, previous_target=target, session_state=session_state)]
         if target and target != "unknown":
             matching = [entity for entity in extracted if entity.entity_type == target]
-            if not matching and re.search(rf"\b{target.replace('_', ' ')}\b", normalize_text(message)):
+            if not matching:
                 value = self._fallback_value_for_target(message, target)
                 if value:
                     extracted.append(ExtractedEntity(entity_type=target, value=value, normalized_value=normalize_text(value), confidence=0.9, source_text=message))

@@ -23,6 +23,7 @@ class AadhaarDocumentService:
         "gender",
         "masked_aadhaar",
         "aadhaar_number",
+        "vid",
         "existing_address",
         "new_address",
         "pincode",
@@ -31,8 +32,8 @@ class AadhaarDocumentService:
     def __init__(self, extractor: AadhaarDocumentExtractor | None = None):
         self.extractor = extractor or AadhaarDocumentExtractor()
 
-    def extract(self, document: AadhaarDocumentInput) -> ExtractionResult:
-        return self.extractor.extract(document)
+    def extract(self, document: AadhaarDocumentInput, user_context: dict[str, Any] | None = None) -> ExtractionResult:
+        return self.extractor.extract(document, user_context=user_context)
 
     def confirm(
         self,

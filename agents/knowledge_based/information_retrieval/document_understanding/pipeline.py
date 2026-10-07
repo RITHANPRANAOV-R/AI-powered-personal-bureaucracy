@@ -94,7 +94,30 @@ class UserDocumentPipeline:
                     avg_confidence = 0.98
                 else:
                     logger.info(f"PDF '{orig_filename}' requires OCR (extracted chars < 50). Triggering OCR.")
-                    ocr_text, ocr_conf = self.ocr_engine.extract_text_from_image(file_bytes)
+                    ocr_lines = []
+                    ocr_confs = []
+
+                    try:
+                        import fitz  # PyMuPDF
+                        pdf_doc = fitz.open(stream=file_bytes, filetype="pdf")
+                        for page in pdf_doc:
+                            pix = page.get_pixmap(dpi=150)
+                            img_bytes = pix.tobytes("png")
+                            page_text, page_conf = self.ocr_engine.extract_text_from_image(img_bytes)
+                            if page_text:
+                                ocr_lines.append(page_text)
+                                ocr_confs.append(page_conf)
+                        pdf_doc.close()
+                    except Exception as render_err:
+                        logger.warning(f"PyMuPDF rendering failed or invalid PDF stream: {render_err}. Falling back to raw bytes for OCR engine/mock.")
+                        ocr_text_fb, ocr_conf_fb = self.ocr_engine.extract_text_from_image(file_bytes)
+                        if ocr_text_fb:
+                            ocr_lines.append(ocr_text_fb)
+                            ocr_confs.append(ocr_conf_fb)
+
+                    ocr_text = "\n".join(ocr_lines) if ocr_lines else ""
+                    ocr_conf = sum(ocr_confs) / len(ocr_confs) if ocr_confs else 0.0
+
                     if ocr_text:
                         extracted_text = ocr_text
                         extraction_method = ExtractionMethod.OCR_SCANNED_PDF

@@ -52,17 +52,61 @@ def _detect_aadhaar_number(value: str) -> str | None:
     return None
 
 
+def _detect_pincode(value: str) -> str | None:
+    match = re.search(r"\b[1-9]\d{5}\b", value)
+    if match:
+        return match.group(0)
+    return None
+
+
 def _detect_address_value(value: str) -> str | None:
+    if not value or not value.strip():
+        return None
     patterns = [
-        r"(?:new\s+)?address\s+(?:is|was|=|:)?\s*([A-Za-z0-9][A-Za-z0-9,\s.-]{1,120})",
-        r"(?:my\s+)?address\s+(?:is|was|=|:)?\s*([A-Za-z0-9][A-Za-z0-9,\s.-]{1,120})",
+        # Explicit markers: new address: ..., address is ..., address to ...
+        r"(?:address\s+(?:changed|updated|modified)\s+from\b.*?\bto\s*|new\s+address\s*(?:is|was|=|:)?|update\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)\s*[:=-]?|change\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)\s*[:=-]?|modify\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)\s*[:=-]?|address\s*(?:is|was|=|:))\s*([A-Za-z0-9#][\s\S]+)",
+        # Conversational markers: shifted to ..., moved to ..., living at ...
+        r"(?:shifted\s+to|moved\s+to|living\s+at|residing\s+at)\s*([A-Za-z0-9#][\s\S]+)",
+        # Sentence structures like "Aadhaar address update. 311 Bazaar Street..." or "Change Aadhaar address - 311 Bazaar Street..."
+        r"(?:aadhaar\s+address\s+(?:update|change)|change\s+aadhaar\s+address)\s*[-–—.]\s*([A-Za-z0-9#][\s\S]+)",
     ]
     for pattern in patterns:
         match = re.search(pattern, value, flags=re.IGNORECASE)
         if match:
             candidate = match.group(1).strip()
-            if candidate and not re.fullmatch(r"(?:address|new address)", candidate, flags=re.IGNORECASE):
+            # If candidate starts with phrasing like "changed from old one to...", extract part after "to"
+            from_to_match = re.search(r"^(?:(?:changed|updated|modified)\s+)?\bfrom\b.*?\bto\s+(.+)", candidate, flags=re.IGNORECASE | re.DOTALL)
+            if from_to_match:
+                candidate = from_to_match.group(1).strip()
+            # Clean trailing PIN prefix, PIN digits, and trailing text/punctuation
+            candidate = re.sub(r"(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$", "", candidate, flags=re.IGNORECASE)
+            # Cut off trailing sentence delimiters or action requests like "Please update..."
+            candidate = re.split(r"(?:\.|\b)(?:please\s+)?(?:update|change|modify)\b", candidate, flags=re.IGNORECASE)[0].strip()
+            candidate = candidate.strip(" .,-–—;:")
+            norm_cand = candidate.lower()
+            if (
+                candidate
+                and len(candidate) >= 3
+                and not re.fullmatch(r"(?:address|new address|location|my aadhaar address|aadhaar address)", norm_cand)
+                and not norm_cand.startswith("my aadhaar address")
+                and not norm_cand.startswith("aadhaar address")
+                and not norm_cand.startswith("wrong")
+            ):
                 return candidate
+
+    # Multiline check: if message contains address update intent and has multiple lines, inspect remaining lines
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    if len(lines) > 1:
+        first_line = lines[0].lower()
+        if any(w in first_line for w in ("update", "change", "address", "shifted", "moved")):
+            candidate_lines = lines[1:]
+            candidate = "\n".join(candidate_lines)
+            candidate = re.sub(r"(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$", "", candidate, flags=re.IGNORECASE)
+            candidate = re.split(r"(?:\.|\b)(?:please\s+)?(?:update|change|modify)\b", candidate, flags=re.IGNORECASE)[0].strip()
+            candidate = candidate.strip(" .,-–—;:")
+            if candidate and len(candidate) >= 3:
+                return candidate
+
     return None
 
 
@@ -113,7 +157,9 @@ def extract_entities(value: str, previous_target: str | None = None, session_sta
         entities.append(_as_entity(entity_type, raw_value, source_text or raw_value))
 
     add("aadhaar_number", _detect_aadhaar_number(text), text)
-    add("address", _detect_address_value(text), text)
+    detected_addr = _detect_address_value(text)
+    add("address", detected_addr, text)
+    add("pincode", _detect_pincode(text), text)
     add("mobile_number", _detect_mobile_number(text), text)
     add("email", _detect_email(text), text)
     add("name", _detect_name(text), text)

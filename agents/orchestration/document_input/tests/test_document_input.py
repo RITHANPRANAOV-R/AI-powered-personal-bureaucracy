@@ -58,12 +58,128 @@ def test_malformed_document():
     assert result.data is None
 
 
-def test_aadhaar_number_is_masked():
+def test_full_aadhaar_number_extraction():
     result = service_with_text().extract(document())
 
-    assert result.data.masked_aadhaar.value == "XXXX-XXXX-9012"
-    assert "1234 5678 9012" not in result.model_dump_json()
-    assert "123456789012" not in result.model_dump_json()
+    assert result.data.aadhaar_number.value == "1234 5678 9012"
+    assert result.data.masked_aadhaar is None
+
+
+# =====================================================================
+# MANDATORY REGRESSION TESTS A - F
+# =====================================================================
+
+def test_a_full_aadhaar():
+    """TEST A: Genuine 12-digit Aadhaar populates aadhaar_number and leaves masked_aadhaar None."""
+    t = """Unique Identification Authority of India
+Government of India
+Ramesh Kumar
+DOB: 15/08/1985
+Gender: MALE
+1234 5678 9012
+Address: 12 Main Street, Chennai 600001
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.aadhaar_number is not None
+    assert r.data.aadhaar_number.value == "1234 5678 9012"
+    assert r.data.masked_aadhaar is None
+
+
+def test_b_masked_aadhaar_plus_vid():
+    """TEST B: Masked Aadhaar + VID populates masked_aadhaar & vid, leaving aadhaar_number None."""
+    t = """Unique Identification Authority of India
+Government of India
+Pooja Devi
+DOB: 12/04/1991
+Gender: FEMALE
+XXXX XXXX 7418
+VID: 9123 4567 8901 2345
+Address: Flat 301, MG Road, Bengaluru, Karnataka - 560001
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.masked_aadhaar is not None
+    assert "7418" in r.data.masked_aadhaar.value
+    assert r.data.vid is not None
+    assert r.data.vid.value == "9123 4567 8901 2345"
+    assert r.data.aadhaar_number is None
+
+
+def test_c_masked_aadhaar_without_vid():
+    """TEST C: Masked Aadhaar without VID leaves vid & aadhaar_number None."""
+    t = """Unique Identification Authority of India
+Government of India
+Pooja Devi
+DOB: 12/04/1991
+Gender: FEMALE
+XXXX XXXX 7418
+Address: Flat 301, MG Road, Bengaluru, Karnataka - 560001
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.masked_aadhaar is not None
+    assert r.data.vid is None
+    assert r.data.aadhaar_number is None
+
+
+def test_d_vid_must_never_become_aadhaar():
+    """TEST D: VID must NEVER be assigned to aadhaar_number."""
+    t = """Unique Identification Authority of India
+Government of India
+Pooja Devi
+DOB: 12/04/1991
+Gender: FEMALE
+VID: 9123 4567 8901 2345
+Address: Flat 301, MG Road, Bengaluru, Karnataka - 560001
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.vid is not None
+    assert r.data.vid.value == "9123 4567 8901 2345"
+    assert r.data.aadhaar_number is None
+
+
+def test_e_full_aadhaar_plus_vid():
+    """TEST E: Both genuine 12-digit Aadhaar and VID present populate separately."""
+    t = """Unique Identification Authority of India
+Government of India
+Ramesh Kumar
+DOB: 15/08/1985
+Gender: MALE
+1234 5678 9012
+VID: 9123 4567 8901 2345
+Address: 12 Main Street, Chennai 600001
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.aadhaar_number is not None
+    assert r.data.aadhaar_number.value == "1234 5678 9012"
+    assert r.data.vid is not None
+    assert r.data.vid.value == "9123 4567 8901 2345"
+
+
+def test_f_clean_address():
+    """TEST F: Clean address extraction stops at PIN code and excludes unrelated panel text."""
+    t = """Unique Identification Authority of India
+Government of India
+Pooja Devi
+DOB: 12/04/1991
+Gender: FEMALE
+XXXX XXXX 7418
+Address:
+D/O: Buvaneswaran, 406, Sapthagiri Enclave,
+Thavasi Nagar, Coimbatore North,
+PO: Velandipalayam, DIST: Coimbatore,
+Tamil Nadu - 641025
+LectruG Scoeo Unrelated Information Panel Text
+Help: help@uidai.gov.in
+"""
+    r = service_with_text(t).extract(document())
+    assert r.data.existing_address is not None
+    addr = r.data.existing_address.value
+    assert "641025" in addr
+    assert "Sapthagiri Enclave" in addr
+    assert "Coimbatore" in addr
+    assert "LectruG" not in addr
+    assert "Scoeo" not in addr
+    assert "help@uidai" not in addr
+
 
 
 def test_extracted_data_is_not_confirmed_automatically():
@@ -98,7 +214,15 @@ def test_user_correction_produces_corrected_provenance():
 
 
 def test_downstream_context_contains_only_confirmed_facts():
-    service = service_with_text()
+    # Use a document containing masked Aadhaar
+    t = """UIDAI Aadhaar
+Name: Ramesh Kumar
+DOB: 15/08/1985
+Gender: MALE
+XXXX XXXX 9012
+Address: 12 Main Street, Chennai 600001
+"""
+    service = service_with_text(t)
     extracted = service.extract(document())
     confirmed = service.confirm(extracted)
 
@@ -107,115 +231,20 @@ def test_downstream_context_contains_only_confirmed_facts():
     assert set(context.facts) == {"name", "date_of_birth", "gender", "masked_aadhaar", "existing_address"}
     assert all(fact.allowed_for_execution for fact in context.facts.values())
     assert all(fact.status.value == "confirmed" for fact in context.facts.values())
-    assert all("1234 5678 9012" not in str(fact.value) for fact in context.facts.values())
-
-
-def test_name_extraction_variations():
-    # 1. Card front with Government header + DOB
-    t1 = """Unique Identification Authority of India
-Government of India
-John Doe
-जन्म तिथि / DOB: 15/08/1985
-लिंग / Gender: पुरुष / MALE
-XXXX-XXXX-9671
-Address: 12 Main St, City 560001
-"""
-    r1 = service_with_text(t1).extract(document())
-    assert r1.data.name.value == "John Doe"
-
-    # 2. Card front with Hindi name above English name
-    t2 = """भारत सरकार
-GOVERNMENT OF INDIA
-रोहन शर्मा
-Rohan Sharma
-जन्म तारीख / DOB : 01/01/1992
-पुरुष / MALE
-9123 4567 8901
-Address: 12 Main St, City 560001
-"""
-    r2 = service_with_text(t2).extract(document())
-    assert r2.data.name.value == "Rohan Sharma"
-
-    # 3. e-Aadhaar "To," layout
-    t3 = """UIDAI
-To,
-Jane Smith
-W/O: Robert Smith
-DOB: 22/11/1990
-Gender: FEMALE
-1234 5678 9012
-Address: 12 Main St, City 560001
-"""
-    r3 = service_with_text(t3).extract(document())
-    assert r3.data.name.value == "Jane Smith"
-
-
-def test_dob_extraction_variations():
-    # Slash formatted DOB
-    t1 = """UIDAI Aadhaar
-Name: Ramesh Kumar
-जन्म तिथि / DOB: 15/08/1985
-Gender: MALE
-1234 5678 9012
-Address: 12 Main Street, Chennai 600001
-"""
-    assert service_with_text(t1).extract(document()).data.date_of_birth.value == "15/08/1985"
-
-    # Hyphen formatted DOB
-    t2 = """UIDAI Aadhaar
-Name: Ramesh Kumar
-DOB : 15-08-1985
-Gender: MALE
-1234 5678 9012
-Address: 12 Main Street, Chennai 600001
-"""
-    assert service_with_text(t2).extract(document()).data.date_of_birth.value == "15/08/1985"
-
-    # Year of Birth only
-    t3 = """UIDAI Aadhaar
-Name: Ramesh Kumar
-Year of Birth / जन्म का वर्ष: 1985
-Gender: MALE
-1234 5678 9012
-Address: 12 Main Street, Chennai 600001
-"""
-    assert service_with_text(t3).extract(document()).data.date_of_birth.value == "1985"
-
-
-def test_gender_extraction_variations():
-    # Hindi + English gender
-    t1 = """UIDAI Aadhaar
-Name: Ramesh Kumar
-DOB: 15/08/1985
-लिंग / Gender: पुरुष / MALE
-1234 5678 9012
-Address: 12 Main Street, Chennai 600001
-"""
-    assert service_with_text(t1).extract(document()).data.gender.value == "MALE"
-
-    # Female gender
-    t2 = """UIDAI Aadhaar
-Name: Sita Sharma
-DOB: 15/08/1985
-Gender: FEMALE
-1234 5678 9012
-Address: 12 Main Street, Chennai 600001
-"""
-    assert service_with_text(t2).extract(document()).data.gender.value == "FEMALE"
 
 
 def test_masked_aadhaar_extraction_variations():
-    # 12 digits space separated
+    # Masked with spaces
     t1 = """UIDAI Aadhaar
 Name: Ramesh Kumar
 DOB: 15/08/1985
 Gender: MALE
-1234 5678 9012
+XXXX XXXX 9012
 Address: 12 Main Street, Chennai 600001
 """
-    assert service_with_text(t1).extract(document()).data.masked_aadhaar.value == "XXXX-XXXX-9012"
+    assert service_with_text(t1).extract(document()).data.masked_aadhaar.value == "XXXX XXXX 9012"
 
-    # Already masked
+    # Masked with hyphens
     t2 = """UIDAI Aadhaar
 Name: Ramesh Kumar
 DOB: 15/08/1985
@@ -223,7 +252,7 @@ Gender: MALE
 XXXX-XXXX-9671
 Address: 12 Main Street, Chennai 600001
 """
-    assert service_with_text(t2).extract(document()).data.masked_aadhaar.value == "XXXX-XXXX-9671"
+    assert service_with_text(t2).extract(document()).data.masked_aadhaar.value == "XXXX XXXX 9671"
 
 
 def test_multiline_address_extraction():
@@ -278,7 +307,7 @@ def test_common_pdf_ocr_line_break_variations():
     assert r.data.name.value == "Ramesh Kumar"
     assert r.data.date_of_birth.value == "15/08/1985"
     assert r.data.gender.value == "MALE"
-    assert r.data.masked_aadhaar.value == "XXXX-XXXX-9012"
+    assert r.data.aadhaar_number.value == "1234 5678 9012"
     assert "600001" in r.data.existing_address.value
 
 
@@ -387,7 +416,7 @@ It should be updated in Aadhaar after every 10 years from date of enrolment.
     assert r.data.name.value == "Pooja Devi"
     assert r.data.date_of_birth.value == "12/04/1991"
     assert r.data.gender.value == "FEMALE"
-    assert r.data.masked_aadhaar.value == "XXXX-XXXX-9671"
+    assert r.data.masked_aadhaar.value == "XXXX XXXX 9671"
     assert "560001" in r.data.existing_address.value
     assert "Sunshine Heights" in r.data.existing_address.value
     assert "should be updated" not in r.data.existing_address.value

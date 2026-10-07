@@ -465,7 +465,7 @@ def launch_in_chromium(
     open_live_portal: bool = True,
 ) -> bool:
     """
-    Exclusively opens the official UIDAI portal (https://myaadhaar.uidai.gov.in/) in Chromium / Google Chrome.
+    Exclusively opens the official UIDAI resident login portal in Chromium / Google Chrome.
     No intermediate or local pages are opened.
     """
     try:
@@ -475,10 +475,15 @@ def launch_in_chromium(
             "/usr/bin/chromium",
             "/usr/bin/chromium-browser",
             "/usr/bin/brave-browser",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
         ]
 
         browser_binary = next((p for p in chrome_paths if os.path.exists(p) and os.access(p, os.X_OK)), None)
-        target_url = UIDAI_OFFICIAL_PORTAL_URL
+        target_url = "https://myaadhaar.uidai.gov.in/login"
 
         if browser_binary:
             logger.info(f"Launching {browser_binary} for official UIDAI portal: {target_url}")

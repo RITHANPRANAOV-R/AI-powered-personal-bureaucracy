@@ -60,6 +60,10 @@ INTENT_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
         "update",
         "change",
         "modify",
+        "shifted",
+        "moved",
+        "shift",
+        "move",
     ),
     "correction_request": (
         "correct",

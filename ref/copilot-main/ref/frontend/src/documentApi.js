@@ -9,10 +9,14 @@ async function request(path, options) {
     return payload;
 }
 
-export function extractAadhaarDocument(file) {
+export function extractAadhaarDocument(file, userContext = {}) {
     const formData = new FormData();
     formData.append('file', file);
-    return request('/api/documents/aadhaar/extract', {
+    const params = new URLSearchParams();
+    if (userContext.newAddress) params.append('new_address', userContext.newAddress);
+    if (userContext.pincode) params.append('pincode', userContext.pincode);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/documents/aadhaar/extract${queryString}`, {
         method: 'POST',
         body: formData,
     });

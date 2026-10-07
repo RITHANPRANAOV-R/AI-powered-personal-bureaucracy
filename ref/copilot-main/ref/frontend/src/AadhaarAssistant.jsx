@@ -102,8 +102,54 @@ export default function AadhaarAssistant() {
         setError('');
         setStatus('extracting');
         setStep(2);
+
+        // Extract new address / PIN from user request string if present
+        const userContext = {};
+        if (request && typeof request === 'string' && request.trim()) {
+            const reqStr = request.trim();
+            const pinMatch = reqStr.match(/\b[1-9]\d{5}\b/);
+            if (pinMatch) {
+                userContext.pincode = pinMatch[0];
+            }
+
+            // Clean full request text for address extraction
+            let text = reqStr.replace(/(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$/i, '');
+            text = text.split(/(?:\.|\b)(?:please\s+)?(?:update|change|modify)\b/i)[0].trim();
+
+            const addrMatch = text.match(/(?:new\s+address\s*[:=-]?|update\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|change\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|modify\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|shifted\s+to|moved\s+to|living\s+at|residing\s+at|address\s+(?:is|was|=|:))\s*([\s\S]+)/i);
+
+            let candidate = null;
+            if (addrMatch && addrMatch[1]) {
+                candidate = addrMatch[1].trim();
+                const fromToMatch = candidate.match(/\bfrom\b.*?\bto\s+(.+)/i);
+                if (fromToMatch && fromToMatch[1]) {
+                    candidate = fromToMatch[1].trim();
+                }
+            } else {
+                const sentenceMatch = text.match(/(?:aadhaar\s+address\s+(?:update|change)|change\s+aadhaar\s+address)\s*[-–—.]?\s*([\s\S]+)/i);
+                if (sentenceMatch && sentenceMatch[1]) {
+                    candidate = sentenceMatch[1].trim();
+                } else if (
+                    !text.toLowerCase().includes('check status') &&
+                    text.length > 15 &&
+                    !text.toLowerCase().startsWith('i want to update my aadhaar address') &&
+                    !text.toLowerCase().startsWith('please update my aadhaar address')
+                ) {
+                    candidate = text.trim();
+                }
+            }
+
+            if (candidate) {
+                candidate = candidate.replace(/(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$/i, '');
+                candidate = candidate.replace(/^[\s.,-–—;:]+|[\s.,-–—;:]+$/g, '');
+                if (candidate && candidate.length >= 3) {
+                    userContext.newAddress = candidate;
+                }
+            }
+        }
+
         try {
-            const response = await extractAadhaarDocument(fileToRead);
+            const response = await extractAadhaarDocument(fileToRead, userContext);
             if (response.status && response.status !== 'success') {
                 throw new Error(response.error || 'Some details could not be read reliably.');
             }
@@ -379,18 +425,46 @@ export default function AadhaarAssistant() {
                                                     <strong style={{ color: isMissing ? '#f59e0b' : 'inherit' }}>
                                                         {val || (key === 'new_address' ? 'Click "Fill" to add new address' : key === 'pincode' ? 'Click "Fill" to add PIN' : 'Not found (click Fill to enter)')}
                                                     </strong>
-                                                    {corrections[key] ? <em>updated</em> : isMissing ? (
+                                                    {corrections[key] ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <em style={{ color: '#10b981' }}>updated</em>
+                                                            <button
+                                                                className="text-button"
+                                                                style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                                                onClick={() => {
+                                                                    setCorrectionField(key);
+                                                                    setCorrectionValue(val || '');
+                                                                    setCorrecting(true);
+                                                                }}
+                                                            >
+                                                                <Pencil size={12} /> Change
+                                                            </button>
+                                                        </div>
+                                                    ) : isMissing ? (
                                                         <button
                                                             className="text-button"
                                                             style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
                                                             onClick={() => {
                                                                 setCorrectionField(key);
+                                                                setCorrectionValue('');
                                                                 setCorrecting(true);
                                                             }}
                                                         >
                                                             <PlusCircle size={12} /> Fill
                                                         </button>
-                                                    ) : null}
+                                                    ) : (
+                                                        <button
+                                                            className="text-button"
+                                                            style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                                            onClick={() => {
+                                                                setCorrectionField(key);
+                                                                setCorrectionValue(val || '');
+                                                                setCorrecting(true);
+                                                            }}
+                                                        >
+                                                            <Pencil size={12} /> Change
+                                                        </button>
+                                                    )}
                                                 </div>
                                             );
                                         })}

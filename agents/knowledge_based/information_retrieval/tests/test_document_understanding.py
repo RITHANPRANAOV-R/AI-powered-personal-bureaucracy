@@ -138,6 +138,34 @@ class TestRealSyntheticDocumentIntegration(unittest.TestCase):
         self.assertIn("masked_aadhaar", doc.extracted_fields)
         self.assertEqual(doc.extracted_fields["masked_aadhaar"].value, "XXXX-XXXX-2109")
 
+    def test_image_only_pdf_processing_pipeline(self):
+        import fitz
+        img = Image.new("RGB", (400, 200), color=(255, 255, 255))
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img.save(tmp.name)
+            tmp_path = tmp.name
+
+        doc_fitz = fitz.open()
+        page = doc_fitz.new_page(width=400, height=200)
+        page.insert_image(page.rect, filename=tmp_path)
+        img_pdf_path = os.path.join(self.temp_dir, "scanned_image_only.pdf")
+        doc_fitz.save(img_pdf_path)
+        doc_fitz.close()
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+        doc: UserDocument = self.pipeline.process_file(img_pdf_path)
+
+        self.assertEqual(doc.mime_type, ".pdf")
+        self.assertEqual(doc.extraction_method, ExtractionMethod.OCR_SCANNED_PDF)
+        self.assertEqual(doc.ocr_status, OCRStatus.SUCCESS)
+        self.assertEqual(doc.document_type, DocumentType.AADHAAR)
+        self.assertIn("masked_aadhaar", doc.extracted_fields)
+        self.assertEqual(doc.extracted_fields["masked_aadhaar"].value, "XXXX-XXXX-9012")
+
 
 if __name__ == "__main__":
     unittest.main()

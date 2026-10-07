@@ -239,3 +239,38 @@ def test_conversation_history_target_context_for_mobile_number():
     assert result.intent_type == "update_request"
     assert result.update_type == "mobile_number"
     assert any(entity.entity_type == "mobile_number" and "9876543210" in entity.value for entity in result.entities)
+
+
+def test_natural_language_address_expressions():
+    variations = [
+        ("Update my Aadhaar address to No. 311, Bazaar Street, Mulanur 638106", "no. 311, bazaar street, mulanur"),
+        ("I want to change my Aadhaar address to 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("Please update my Aadhaar with this address: 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("My new address is 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("I have shifted to 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("I moved to 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("Change Aadhaar address — 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("Aadhaar address update. 311 Bazaar Street, Mulanur 638106", "311 bazaar street, mulanur"),
+        ("I want my Aadhaar address changed from the old one to 311 Bazaar Street, Mulanur", "311 bazaar street, mulanur"),
+        ("I want to update my Aadhaar address\nNo. 311, Bazaar Street,\nMulanur, 638106", "no. 311, bazaar street,\nmulanur"),
+    ]
+
+    for msg, expected_substr in variations:
+        res = service.process(UserRequestInput(session_id="nat_lang", user_message=msg))
+        assert res.intent_type == "update_request", f"Failed intent for {msg}"
+        assert res.update_type == "address", f"Failed target for {msg}"
+        addr_entities = [e for e in res.entities if e.entity_type == "address"]
+        assert len(addr_entities) > 0, f"Failed to extract address from: {msg}"
+        extracted_val = " ".join(addr_entities[0].value.lower().split())
+        clean_expected = " ".join(expected_substr.lower().split())
+        assert clean_expected in extracted_val or extracted_val in clean_expected, f"Expected '{clean_expected}' in '{extracted_val}' for: {msg}"
+
+
+def test_request_mentioning_address_without_new_address_does_not_invent():
+    request = UserRequestInput(session_id="s_empty", user_message="I want to update my Aadhaar address.")
+    result = service.process(request)
+
+    assert result.intent_type == "update_request"
+    assert result.update_type == "address"
+    assert not any(e.entity_type == "address" for e in result.entities)
+    assert any(item.field_name == "new_address" for item in result.missing_information)

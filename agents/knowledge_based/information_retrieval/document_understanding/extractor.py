@@ -4,11 +4,12 @@ Extracted field values are preserved with confidence scores, page provenance, an
 """
 import re
 import logging
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any, Optional, List
 from agents.knowledge_based.information_retrieval.schemas.user_document import (
     DocumentType,
     ExtractedField,
 )
+from agents.knowledge_based.information_retrieval.document_understanding.ocr_engine import OCRLine
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class DocumentClassifier:
             r"unique identification", r"authority of india", r"aadhaar", r"aadhar", r"adhar",
             r"uidai", r"mera aadhaar", r"my aadhaar", r"enrolment", r"enrollment",
             r"government of india", r"bharat sarkar", r"\b\d{4}\s?\d{4}\s?\d{4}\b",
-            r"\b[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}\b"
+            r"\b[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}\b", r"\bvid\b", r"virtual id"
         ],
         DocumentType.PASSPORT: [
             r"republic of india", r"passport", r"passport no", r"type p"
@@ -113,6 +114,11 @@ ADDRESS_BOILERPLATE_PATTERNS = [
     r"proof\s+of\s+identity",
     r"not\s+of\s+citizenship",
     r"not\s+a\s+proof\s+of\s+citizenship",
+    r"aadhaarisproofofidentity",
+    r"aadhaar\s*is\s*proof",
+    r"identity\.notofcitizenship",
+    r"citizenshipordateofbirth",
+    r"dob\.dob",
     r"help@uidai",
     r"www\.uidai",
     r"toll\s+free",
@@ -138,7 +144,9 @@ class FieldExtractor:
     Extracts structured key-value fields (name, dob, gender, address, document reference) from user documents.
     """
 
-    def extract_fields(self, text: str, doc_type: DocumentType, page_number: int = 1) -> Dict[str, ExtractedField]:
+    def extract_fields(
+        self, text: str, doc_type: DocumentType, page_number: int = 1, ocr_lines: Optional[List[OCRLine]] = None
+    ) -> Dict[str, ExtractedField]:
         """
         Extracts document-specific fields with privacy sanitization.
         """
@@ -156,11 +164,19 @@ class FieldExtractor:
         if dob_field:
             fields["dob"] = dob_field
 
-        # 3. Document Reference Number (Masked for privacy)
-        if doc_type == DocumentType.AADHAAR or re.search(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b", text) or re.search(r"[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}", text):
-            aadhaar_field = self._extract_masked_aadhaar(text, page_number)
-            if aadhaar_field:
-                fields["masked_aadhaar"] = aadhaar_field
+        # 3. Document Reference Number (Masked, full 12-digit, and VID)
+        if doc_type == DocumentType.AADHAAR or re.search(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b", text) or re.search(r"[xX]{4}[\s-]?[xX]{4}[\s-]?\d{4}", text) or re.search(r"\bVID\b", text, re.I):
+            vid_field = self._extract_vid(text, page_number)
+            if vid_field:
+                fields["vid"] = vid_field
+
+            masked_aadhaar_field = self._extract_masked_aadhaar(text, page_number)
+            if masked_aadhaar_field:
+                fields["masked_aadhaar"] = masked_aadhaar_field
+
+            full_aadhaar_field = self._extract_aadhaar_number(text, page_number)
+            if full_aadhaar_field:
+                fields["aadhaar_number"] = full_aadhaar_field
 
         elif doc_type == DocumentType.PAN:
             pan_match = re.search(r"\b([A-Z]{5}[0-9]{4}[A-Z]{1})\b", text)
@@ -180,7 +196,7 @@ class FieldExtractor:
             fields["name"] = name_field
 
         # 5. Address Extraction
-        address_field = self._extract_address(text, page_number)
+        address_field = self._extract_address(text, page_number, ocr_lines=ocr_lines)
         if address_field:
             fields["address"] = address_field
 
@@ -264,36 +280,90 @@ class FieldExtractor:
 
         return None
 
-    def _extract_masked_aadhaar(self, text: str, page_number: int) -> Optional[ExtractedField]:
-        full_match = re.search(r"\b(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})\b", text)
-        if full_match:
-            last4 = full_match.group(3)
-            return ExtractedField(
-                field_name="masked_aadhaar",
-                value=f"XXXX-XXXX-{last4}",
-                confidence=0.95,
-                page_number=page_number,
-            )
+    def _extract_vid(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # 1. Explicit VID context / label
+        vid_match = re.search(
+            r"(?:VID|Virtual\s+ID|Virtual\s+ID\s*\(VID\)|वीआईडी|विर्चुअल\s+आईडी)\s*[:\s-]*\s*(\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4})\b",
+            text,
+            re.IGNORECASE,
+        )
+        if vid_match:
+            raw = re.sub(r"[\s-]", "", vid_match.group(1))
+            if len(raw) == 16:
+                formatted = f"{raw[:4]} {raw[4:8]} {raw[8:12]} {raw[12:]}"
+                return ExtractedField(field_name="vid", value=formatted, confidence=0.95, page_number=page_number)
 
+        # 2. Fallback: 16-digit sequence preceded within 50 chars by VID / Virtual ID keyword
+        for match in re.finditer(r"\b(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})\b", text):
+            start_ctx = max(0, match.start() - 50)
+            context = text[start_ctx:match.start()].lower()
+            if any(k in context for k in ["vid", "virtual", "वीआईडी", "विर्चुअल"]):
+                val = f"{match.group(1)} {match.group(2)} {match.group(3)} {match.group(4)}"
+                return ExtractedField(field_name="vid", value=val, confidence=0.92, page_number=page_number)
+
+        return None
+
+    def _extract_masked_aadhaar(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # Only match actual masked Aadhaar patterns (e.g. XXXX XXXX 7418 or XXXX-XXXX-7418)
+        # NEVER convert full Aadhaar numbers into masked Aadhaar.
         masked_match = re.search(r"\b(?:[xX]{4}|[•*]{4})[\s-]*(?:[xX]{4}|[•*]{4})[\s-]*(\d{4})\b", text)
         if masked_match:
             last4 = masked_match.group(1)
             return ExtractedField(
                 field_name="masked_aadhaar",
-                value=f"XXXX-XXXX-{last4}",
+                value=f"XXXX XXXX {last4}",
                 confidence=0.95,
                 page_number=page_number,
             )
+        return None
 
-        cont_match = re.search(r"(?<!\d)(\d{12})(?!\d)", text)
-        if cont_match:
-            last4 = cont_match.group(1)[-4:]
-            return ExtractedField(
-                field_name="masked_aadhaar",
-                value=f"XXXX-XXXX-{last4}",
-                confidence=0.92,
-                page_number=page_number,
-            )
+    def _extract_aadhaar_number(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        # RULE 1: A 16-digit VID must NEVER populate aadhaar_number.
+        # RULE 2: A masked Aadhaar must NEVER be converted or inferred into a full Aadhaar number.
+        # RULE 3: If document contains only masked Aadhaar and no genuine unmasked 12-digit Aadhaar number, aadhaar_number = None.
+        lines = text.split("\n")
+        for line in lines:
+            line_str = line.strip()
+            # Ignore lines that are explicitly labeled as VID
+            if re.search(r"\b(?:VID|Virtual\s+ID|वीआईडी|विर्चुअल\s+आईडी)\b", line_str, re.IGNORECASE):
+                continue
+
+            # Look for 3 blocks of 4 digits
+            for m in re.finditer(r"\b(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})\b", line_str):
+                # Check if followed by a 4th block of 4 digits (which would make it a 16-digit VID)
+                after_text = line_str[m.end():]
+                if re.match(r"^[\s-]*\d{4}\b", after_text):
+                    continue  # It's part of a 16-digit VID! Ignore.
+
+                # Check if preceded by VID / Virtual ID / Enrolment context
+                before_text = line_str[:m.start()].lower()
+                if any(kw in before_text for kw in ["vid", "virtual", "enrolment", "enrollment"]):
+                    continue
+
+                val = f"{m.group(1)} {m.group(2)} {m.group(3)}"
+                return ExtractedField(
+                    field_name="aadhaar_number",
+                    value=val,
+                    confidence=0.95,
+                    page_number=page_number,
+                )
+
+            # Look for 12 continuous digits
+            for m in re.finditer(r"(?<!\d)(\d{12})(?!\d)", line_str):
+                before_text = line_str[:m.start()].lower()
+                after_text = line_str[m.end():].lower()
+                if any(kw in before_text for kw in ["vid", "virtual", "enrolment", "enrollment"]):
+                    continue
+                if re.match(r"^\d{4}\b", after_text):  # 16 digits
+                    continue
+                raw_num = m.group(1)
+                val = f"{raw_num[:4]} {raw_num[4:8]} {raw_num[8:]}"
+                return ExtractedField(
+                    field_name="aadhaar_number",
+                    value=val,
+                    confidence=0.92,
+                    page_number=page_number,
+                )
 
         return None
 
@@ -449,9 +519,15 @@ class FieldExtractor:
                 continue
             if self._is_address_boilerplate(line_str):
                 break
-            if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_str):
+            if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4}|\d{4}\s\d{4}\s\d{4}\s\d{4})\b", line_str):
                 break
-            line_str = re.sub(r"^(?:Address|पता|Address\s*-\s*|पता\s*-\s*)[:\s-]*", "", line_str, flags=re.IGNORECASE).strip()
+            line_str = re.sub(r"^(?:Address|पता|Address\s*[:\s-]*|पता\s*[:\s-]*)", "", line_str, flags=re.IGNORECASE).strip()
+            # Strip inline boilerplate suffix if appended to address line
+            for pat in ADDRESS_BOILERPLATE_PATTERNS:
+                match = re.search(pat, line_str, flags=re.IGNORECASE)
+                if match:
+                    line_str = line_str[:match.start()].strip()
+                    break
             clean_l = line_str.rstrip(",; ")
             if clean_l and not self._is_address_boilerplate(clean_l):
                 cleaned.append(clean_l)
@@ -459,99 +535,120 @@ class FieldExtractor:
                 break
         return cleaned
 
-    def _extract_address(self, text: str, page_number: int) -> Optional[ExtractedField]:
-        # 1. Search for English Address block
-        lines = text.split("\n")
-        address_lines = []
-        in_address = False
+    def _extract_address(
+        self, text: str, page_number: int, ocr_lines: Optional[List[OCRLine]] = None
+    ) -> Optional[ExtractedField]:
+        # Convert text to OCRLines if not provided
+        lines: List[OCRLine] = []
+        if ocr_lines:
+            lines = ocr_lines
+        else:
+            for l in text.split("\n"):
+                l_str = l.strip()
+                if l_str:
+                    lines.append(OCRLine(text=l_str, confidence=0.9, bbox=[], page_number=page_number))
 
-        for idx, line in enumerate(lines):
-            line_stripped = line.strip()
-            if not in_address:
-                if re.search(r"^(?:Address|Address\s*[:\s-])", line_stripped, re.IGNORECASE):
-                    if self._is_address_boilerplate(line_stripped):
-                        continue
-                    in_address = True
-                    address_lines.append(line_stripped)
-                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
-                        break
-            else:
-                if not line_stripped:
-                    if idx + 1 < len(lines) and not lines[idx + 1].strip():
-                        break
+        if not lines:
+            return None
+
+        anchor_regex = re.compile(
+            r"^(?:Address|Address\s*[:\s-]|पता|पता\s*[:\s-]|S/O|D/O|W/O|C/O|R/O|Care\s+of)[:\s-]",
+            re.IGNORECASE,
+        )
+
+        address_blocks: list[list[OCRLine]] = []
+
+        for idx, line_obj in enumerate(lines):
+            line_txt = line_obj.text.strip()
+            if anchor_regex.search(line_txt) or re.search(r"\b(?:S/O|D/O|W/O|C/O|Care\s+of)[:\s]", line_txt, re.IGNORECASE):
+                if self._is_address_boilerplate(line_txt):
                     continue
-                if self._is_address_boilerplate(line_stripped):
-                    break
-                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
-                    break
-                address_lines.append(line_stripped)
-                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
-                    break
 
-        if address_lines:
-            cleaned = self._clean_address_lines(address_lines)
-            if cleaned:
-                addr_str = ", ".join(cleaned)
-                addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
-                addr_str = re.sub(r"\s+", " ", addr_str).strip()
-                if self._validate_address(addr_str):
-                    return ExtractedField(field_name="address", value=addr_str, confidence=0.88, page_number=page_number)
+                current_block: list[OCRLine] = [line_obj]
 
-        # 2. Search for Hindi / General पता block
-        address_lines = []
-        in_address = False
-        for idx, line in enumerate(lines):
-            line_stripped = line.strip()
-            if not in_address:
-                if re.search(r"^(?:पता|पता\s*[:\s-])", line_stripped, re.IGNORECASE):
-                    if self._is_address_boilerplate(line_stripped):
-                        continue
-                    in_address = True
-                    address_lines.append(line_stripped)
-                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
-                        break
-            else:
-                if not line_stripped:
-                    if idx + 1 < len(lines) and not lines[idx + 1].strip():
-                        break
+                # Bounding box of anchor for horizontal column filtering
+                anchor_x_range = None
+                if line_obj.bbox and len(line_obj.bbox) >= 4:
+                    xs = [pt[0] for pt in line_obj.bbox]
+                    anchor_x_range = (min(xs) - 150.0, max(xs) + 350.0)
+
+                # PIN STOP RULE: Check if anchor line already contains PIN code
+                if re.search(r"\b[1-9]\d{5}\b", line_txt):
+                    address_blocks.append(current_block)
                     continue
-                if self._is_address_boilerplate(line_stripped):
-                    break
-                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
-                    break
-                address_lines.append(line_stripped)
-                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
-                    break
 
-        if address_lines:
-            cleaned = self._clean_address_lines(address_lines)
-            if cleaned:
-                addr_str = ", ".join(cleaned)
-                addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
-                addr_str = re.sub(r"\s+", " ", addr_str).strip()
-                if self._validate_address(addr_str):
-                    return ExtractedField(field_name="address", value=addr_str, confidence=0.82, page_number=page_number)
+                for fwd_idx in range(idx + 1, len(lines)):
+                    fwd_line = lines[fwd_idx]
+                    fwd_txt = fwd_line.text.strip()
+                    if not fwd_txt:
+                        continue
 
-        # 3. Search for C/O, S/O, D/O, W/O block with PIN code
+                    # Column / spatial filtering using bounding box overlap
+                    if anchor_x_range and fwd_line.bbox and len(fwd_line.bbox) >= 4:
+                        fwd_xs = [pt[0] for pt in fwd_line.bbox]
+                        fwd_min_x = min(fwd_xs)
+                        if fwd_min_x < anchor_x_range[0] or fwd_min_x > anchor_x_range[1]:
+                            # Unrelated column text! Ignore.
+                            continue
+
+                    # Stop conditions: next anchor, boilerplate, VID, Aadhaar number, UIDAI footer
+                    if (anchor_regex.search(fwd_txt) or re.search(r"^(?:Address|पता)\b", fwd_txt, re.I)) and len(current_block) > 1:
+                        break
+                    if self._is_address_boilerplate(fwd_txt):
+                        break
+                    if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4}|\d{4}\s\d{4}\s\d{4}\s\d{4})\b", fwd_txt):
+                        break
+                    if re.search(r"\b(?:VID|Virtual\s+ID|Help|Helpline|Toll\s+Free|www\.uidai|help@uidai)\b", fwd_txt, re.IGNORECASE):
+                        break
+
+                    current_block.append(fwd_line)
+
+                    # PIN STOP RULE: include the line containing the PIN code and STOP immediately
+                    if re.search(r"\b[1-9]\d{5}\b", fwd_txt):
+                        break
+
+                if current_block:
+                    address_blocks.append(current_block)
+
+        # Select best validated address candidate block
+        best_cleaned: list[str] = []
+        for block in address_blocks:
+            cleaned = self._clean_address_lines([l.text for l in block])
+            if cleaned and len(", ".join(cleaned)) > len(", ".join(best_cleaned)):
+                candidate_str = ", ".join(cleaned)
+                if self._validate_address(candidate_str):
+                    best_cleaned = cleaned
+
+        if best_cleaned:
+            addr_str = ", ".join(best_cleaned)
+            addr_str = re.sub(r"\s*,\s*", ", ", addr_str)
+            addr_str = re.sub(r"\s+", " ", addr_str).strip()
+            return ExtractedField(field_name="address", value=addr_str, confidence=0.88, page_number=page_number)
+
+        # General fallback if no anchor blocks were found
+        return self._fallback_extract_address(text, page_number)
+
+    def _fallback_extract_address(self, text: str, page_number: int) -> Optional[ExtractedField]:
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
         address_lines = []
         in_address = False
+
         for idx, line in enumerate(lines):
-            line_stripped = line.strip()
             if not in_address:
-                if re.search(r"^(?:S/O|D/O|W/O|C/O|Care\s+of)[:\s]", line_stripped, re.IGNORECASE):
-                    if self._is_address_boilerplate(line_stripped):
+                if re.search(r"^(?:Address|पता|Address\s*[:\s-]|पता\s*[:\s-])", line, re.IGNORECASE):
+                    if self._is_address_boilerplate(line):
                         continue
                     in_address = True
-                    address_lines.append(line_stripped)
-                    if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                    address_lines.append(line)
+                    if re.search(r"\b[1-9]\d{5}\b", line):
                         break
             else:
-                if not line_stripped or self._is_address_boilerplate(line_stripped):
+                if self._is_address_boilerplate(line):
                     break
-                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line_stripped):
+                if re.search(r"\b(\d{4}\s\d{4}\s\d{4}|[xX]{4}[\s-][xX]{4}[\s-]\d{4})\b", line):
                     break
-                address_lines.append(line_stripped)
-                if re.search(r"\b[1-9]\d{5}\b", line_stripped):
+                address_lines.append(line)
+                if re.search(r"\b[1-9]\d{5}\b", line):
                     break
 
         if address_lines:

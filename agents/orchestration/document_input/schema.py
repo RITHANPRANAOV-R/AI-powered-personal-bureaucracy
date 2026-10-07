@@ -12,6 +12,7 @@ from agents.utility_based.execution_assistance.schema import ConfirmedExecutionC
 
 class FieldProvenance(str, Enum):
     EXTRACTED_FROM_DOCUMENT = "extracted_from_document"
+    USER_CONTEXT = "user_context"
     USER_CONFIRMED = "user_confirmed"
     USER_CORRECTED = "user_corrected"
 
@@ -60,6 +61,7 @@ class AadhaarExtractedData(BaseModel):
     gender: Optional[ExtractedField] = None
     masked_aadhaar: Optional[ExtractedField] = None
     aadhaar_number: Optional[ExtractedField] = None
+    vid: Optional[ExtractedField] = None
     existing_address: Optional[ExtractedField] = None
     new_address: Optional[ExtractedField] = None
     pincode: Optional[ExtractedField] = None
@@ -73,6 +75,7 @@ class AadhaarConfirmedData(BaseModel):
     gender: Optional[ConfirmedField] = None
     masked_aadhaar: Optional[ConfirmedField] = None
     aadhaar_number: Optional[ConfirmedField] = None
+    vid: Optional[ConfirmedField] = None
     existing_address: Optional[ConfirmedField] = None
     new_address: Optional[ConfirmedField] = None
     pincode: Optional[ConfirmedField] = None
@@ -86,6 +89,7 @@ class AadhaarConfirmedData(BaseModel):
             "gender",
             "masked_aadhaar",
             "aadhaar_number",
+            "vid",
             "existing_address",
             "new_address",
             "pincode",
@@ -100,12 +104,11 @@ class AadhaarConfirmedData(BaseModel):
                 allowed_for_execution=True,
             )
             facts[field_name] = fact
-            if field_name == "existing_address" and "address" not in facts:
-                facts["address"] = fact
+            if field_name == "aadhaar_number":
+                facts["aadhaar"] = fact
+                facts["uid"] = fact
             elif field_name == "new_address":
                 facts["address"] = fact
-            elif field_name == "aadhaar_number" and "masked_aadhaar" not in facts:
-                facts["masked_aadhaar"] = fact
         return ConfirmedExecutionContext(
             session_id=session_id,
             application_id=application_id,

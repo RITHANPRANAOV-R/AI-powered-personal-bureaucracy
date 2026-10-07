@@ -154,7 +154,8 @@ class InteractivePortalManager:
         street = str(facts.get("street") or facts.get("road") or facts.get("lane") or "")
         landmark = str(facts.get("landmark") or "")
         area = str(facts.get("locality") or facts.get("area") or facts.get("sector") or "")
-        city = str(facts.get("city") or facts.get("town") or facts.get("vtc") or "")
+        vtc = str(facts.get("vtc") or facts.get("city") or facts.get("town") or "")
+        post_office = str(facts.get("post_office") or facts.get("po") or "")
         care_of = str(facts.get("care_of") or facts.get("guardian") or facts.get("father_name") or facts.get("name") or "")
 
         import re
@@ -174,8 +175,6 @@ class InteractivePortalManager:
                 house = parts[0]
                 if len(parts) > 1 and not street:
                     street = parts[1]
-                if len(parts) > 2 and not area:
-                    area = parts[2]
 
         return {
             "new_address": new_addr,
@@ -184,7 +183,9 @@ class InteractivePortalManager:
             "street": street,
             "landmark": landmark,
             "area": area,
-            "city": city,
+            "vtc": vtc,
+            "city": vtc,
+            "post_office": post_office,
             "care_of": care_of,
         }
 
@@ -300,6 +301,11 @@ class InteractivePortalManager:
                 "/usr/bin/chromium",
                 "/usr/bin/chromium-browser",
                 "/usr/bin/brave-browser",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+                os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+                os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
             ]
             browser_binary = next((p for p in chrome_paths if os.path.exists(p) and os.access(p, os.X_OK)), None)
 
@@ -320,9 +326,10 @@ class InteractivePortalManager:
             browser = await p.chromium.launch(**launch_kwargs)
             session.browser = browser
 
+            # Create a clean browser context to prevent stale session cookies
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                viewport=None,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800},
             )
             # Mask automation flags to prevent Cloudflare/WAF session rejection
             await context.add_init_script("""
@@ -333,51 +340,91 @@ class InteractivePortalManager:
             page = await context.new_page()
             session.page = page
 
-            logger.info(f"Navigating to myAadhaar origin ({UIDAI_OFFICIAL_URL}) to establish fresh session...")
+            origin_url = "https://myaadhaar.uidai.gov.in/"
+            login_url = "https://myaadhaar.uidai.gov.in/login"
+            fallback_login_url = "https://tathya.uidai.gov.in/access/login?role=resident"
+
+            logger.info(f"Navigating to UIDAI origin ({origin_url}) to initialize session cookies...")
             try:
-                await page.goto(UIDAI_OFFICIAL_URL, wait_until="networkidle", timeout=30000)
-            except Exception:
-                await page.goto(UIDAI_OFFICIAL_URL, timeout=30000)
+                await page.goto(origin_url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as nav_e:
+                logger.debug(f"Origin navigation note: {nav_e}")
 
-            await page.wait_for_timeout(1500)
+            await page.wait_for_timeout(1000)
 
-            # Click Login button on myAadhaar to initiate stateful authentication handshake
-            logger.info("Clicking Login on myAadhaar to launch fresh authentication session...")
-            login_clicked = await self._smart_click_or_submit(
-                page,
-                target_texts=["Login", "Login with OTP"],
-                selectors=['button:has-text("Login")', 'text=Login', 'a:has-text("Login")', 'button:has-text("Login with OTP")'],
-            )
-            if not login_clicked:
-                logger.debug("Trying direct login redirect...")
+            # Navigate directly to Resident Login page (working Phase 1 execution path)
+            logger.info(f"Navigating directly to UIDAI Resident Login page: {login_url}")
+            try:
+                await page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as login_nav_err:
+                logger.debug(f"Direct /login navigation note: {login_nav_err}")
+
+            await page.wait_for_timeout(1000)
+
+            uid_selectors = [
+                'input[name="uid"]',
+                'input[placeholder*="Aadhaar" i]',
+                'input[placeholder*="UID" i]',
+                '#uid',
+                'input[formcontrolname="uid"]',
+                'input[name="aadhaarNum"]',
+                'input[type="text"][maxlength="12"]',
+                'input[type="text"][maxlength="14"]',
+            ]
+
+            # Verify if Resident Login page is visible
+            is_on_login_page = False
+            for sel in uid_selectors:
                 try:
-                    await page.goto(UIDAI_LOGIN_URL, timeout=20000)
-                except Exception as nav_err:
-                    logger.debug(f"Direct login navigation note: {nav_err}")
+                    loc = page.locator(sel).first
+                    if await loc.count() > 0 and await loc.is_visible():
+                        is_on_login_page = True
+                        break
+                except Exception:
+                    pass
 
-            # If a new tab was opened upon clicking Login, switch to it
-            await page.wait_for_timeout(2000)
+            if not is_on_login_page:
+                logger.info("Not on resident login form yet. Attempting smart click or fallback navigation...")
+                await self._smart_click_or_submit(
+                    page,
+                    target_texts=["Login", "Login with OTP"],
+                    selectors=['button:has-text("Login")', 'a[href*="login"]', 'text=Login', 'button:has-text("Login with OTP")'],
+                )
+                await page.wait_for_timeout(1500)
+
+                for sel in uid_selectors:
+                    try:
+                        loc = page.locator(sel).first
+                        if await loc.count() > 0 and await loc.is_visible():
+                            is_on_login_page = True
+                            break
+                    except Exception:
+                        pass
+
+                if not is_on_login_page:
+                    logger.info(f"Navigating directly to resident login endpoint: {fallback_login_url}")
+                    try:
+                        await page.goto(fallback_login_url, wait_until="domcontentloaded", timeout=25000)
+                    except Exception as goto_err:
+                        logger.warning(f"Fallback login navigation note: {goto_err}")
+
             if len(context.pages) > 1:
                 page = context.pages[-1]
                 session.page = page
                 await page.bring_to_front()
 
-            # Check if Session Expired screen appeared; if so, click retry/refresh
+            # Verify Resident Login field is visible before continuing to autofill
+            logger.info("Waiting for Aadhaar UID input field on Resident Login page...")
             try:
-                page_text = await page.content()
-                if "Session Expired" in page_text:
-                    logger.warning("Session Expired detected on Tathya; attempting automatic session refresh...")
-                    await page.goto(UIDAI_OFFICIAL_URL, wait_until="domcontentloaded", timeout=25000)
-                    await page.wait_for_timeout(2000)
-                    await self._smart_click_or_submit(page, ["Login", "Login with OTP"])
-                    await page.wait_for_timeout(2000)
-                    if len(context.pages) > 1:
-                        page = context.pages[-1]
-                        session.page = page
-            except Exception as exp_check_err:
-                logger.debug(f"Session expired recovery check note: {exp_check_err}")
+                await page.wait_for_selector(
+                    'input[name="uid"], input[placeholder*="Aadhaar" i], input[placeholder*="UID" i], #uid, input[type="text"]',
+                    timeout=20000,
+                    state="visible",
+                )
+            except Exception as wait_uid_err:
+                logger.warning(f"UID wait_for_selector notice: {wait_uid_err}")
 
-            # Autofill Aadhaar number into login UID input with realistic typing and React state sync
+            # Autofill Aadhaar number strictly from confirmed context (NO hardcoded/demo fallback)
             try:
                 def extract_fact_val(v: Any) -> str:
                     if hasattr(v, "value"):
@@ -390,79 +437,66 @@ class InteractivePortalManager:
                 aadhaar_num = (
                     facts.get("aadhaar_number")
                     or facts.get("aadhaar")
-                    or facts.get("masked_aadhaar")
                     or facts.get("uid")
                     or ""
                 )
                 clean_aadhaar = "".join(filter(str.isdigit, str(aadhaar_num)))
-                if not clean_aadhaar or len(clean_aadhaar) < 12:
-                    clean_aadhaar = "999912345678"
 
-                # Wait for Aadhaar input field to become ready and mounted in DOM
-                uid_selectors = [
-                    'input[name="uid"]',
-                    'input[placeholder*="Aadhaar" i]',
-                    'input[placeholder*="UID" i]',
-                    '#uid',
-                    'input[formcontrolname="uid"]',
-                    'input[type="text"][maxlength="12"]',
-                    'input[type="text"][maxlength="14"]',
-                    'input[type="text"]',
-                ]
+                if len(clean_aadhaar) == 12:
+                    filled = False
+                    for sel in uid_selectors:
+                        try:
+                            loc = page.locator(sel).first
+                            if await loc.count() > 0 and await loc.is_visible():
+                                await loc.scroll_into_view_if_needed()
+                                await loc.click()
+                                await page.keyboard.press("Control+A")
+                                await page.keyboard.press("Backspace")
+                                await loc.press_sequentially(clean_aadhaar, delay=35)
 
-                # Wait for any UID selector to be visible
-                try:
-                    await page.wait_for_selector(
-                        'input[name="uid"], input[placeholder*="Aadhaar" i], input[placeholder*="UID" i], #uid, input[type="text"]',
-                        timeout=25000,
-                        state="visible",
-                    )
-                except Exception as wait_uid_err:
-                    logger.debug(f"UID wait_for_selector notice: {wait_uid_err}")
-
-                filled = False
-                for sel in uid_selectors:
-                    try:
-                        loc = page.locator(sel).first
-                        if await loc.count() > 0 and await loc.is_visible():
-                            await loc.scroll_into_view_if_needed()
-                            await loc.click()
-                            await page.keyboard.press("Control+A")
-                            await page.keyboard.press("Backspace")
-                            await loc.press_sequentially(clean_aadhaar, delay=35)
-
-                            # Synchronize React internal fiber / synthetic state
-                            await page.evaluate("""
-                                ([sel, val]) => {
-                                    const el = document.querySelector(sel);
-                                    if (el) {
-                                        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-                                        if (nativeSetter) {
-                                            nativeSetter.call(el, val);
-                                        } else {
-                                            el.value = val;
+                                # Synchronize React internal fiber / synthetic state
+                                await page.evaluate("""
+                                    ([sel, val]) => {
+                                        const el = document.querySelector(sel);
+                                        if (el) {
+                                            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                                            if (nativeSetter) {
+                                                nativeSetter.call(el, val);
+                                            } else {
+                                                el.value = val;
+                                            }
+                                            el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                                            el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                                            el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: val.slice(-1) }));
                                         }
-                                        el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                                        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                                        el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: val.slice(-1) }));
                                     }
-                                }
-                            """, [sel, clean_aadhaar])
+                                """, [sel, clean_aadhaar])
 
-                            await page.keyboard.press("Tab")
-                            filled = True
-                            logger.info(f"Successfully autofilled Aadhaar UID ({len(clean_aadhaar)} digits) into login portal via selector '{sel}'.")
-                            break
-                    except Exception as try_fill_err:
-                        logger.debug(f"UID fill attempt on '{sel}' failed: {try_fill_err}")
-                        continue
+                                await page.keyboard.press("Tab")
+                                filled = True
+                                logger.info(f"Successfully autofilled confirmed Aadhaar UID ({clean_aadhaar[:4]}****{clean_aadhaar[-4:]}) into resident login portal via selector '{sel}'.")
+                                break
+                        except Exception as try_fill_err:
+                            logger.debug(f"UID fill attempt on '{sel}' failed: {try_fill_err}")
+                            continue
+                else:
+                    logger.warning(
+                        f"No valid 12-digit confirmed Aadhaar number found in context (raw value: '{aadhaar_num}'). "
+                        "Autofill skipped without hardcoded fallback."
+                    )
 
                 # Focus on the CAPTCHA field so the user can immediately type
-                captcha_selectors = ['input[name="captcha"]', 'input[placeholder*="Captcha" i]', 'input[placeholder*="CAPTCHA" i]']
+                captcha_selectors = [
+                    'input[name="captcha"]',
+                    'input[placeholder*="Captcha" i]',
+                    'input[placeholder*="CAPTCHA" i]',
+                    '#captcha',
+                    'input[formcontrolname="captcha"]',
+                ]
                 for cap_sel in captcha_selectors:
                     try:
                         cap_loc = page.locator(cap_sel).first
-                        if await cap_loc.count() > 0:
+                        if await cap_loc.count() > 0 and await cap_loc.is_visible():
                             await cap_loc.focus()
                             break
                     except Exception:
@@ -731,19 +765,53 @@ class InteractivePortalManager:
                         addr_data["new_address"],
                     )
 
-                # 4. Click Next/Proceed on the demographic form
-                await self._smart_click_or_submit(
+                # 4. Handle cascading VTC dropdown
+                vtc_res = await self._select_dropdown_option(
                     page,
-                    target_texts=["Next", "Proceed", "Save & Continue", "Submit", "Continue"],
-                    selectors=[
-                        'button:has-text("Next")',
-                        'button:has-text("Proceed")',
-                        'button:has-text("Save & Continue")',
-                        'button[type="submit"]',
-                        'input[type="submit"]',
-                    ],
+                    ['select[name*="vtc" i]', 'select[formcontrolname*="vtc" i]', 'select[id*="vtc" i]', 'mat-select[formcontrolname*="vtc" i]'],
+                    addr_data.get("vtc", ""),
+                    "Village/Town/City",
                 )
-                logger.info("Autofilled address demographic form and advanced to document stage.")
+                logger.info(f"VTC dropdown result: {vtc_res}")
+
+                # 5. Handle cascading Post Office dropdown (prioritizing mat-select controls)
+                po_res = await self._select_dropdown_option(
+                    page,
+                    [
+                        'mat-select[formcontrolname*="postOffice" i]',
+                        'mat-select[id*="postOffice" i]',
+                        'mat-select[formcontrolname*="po" i]',
+                        'mat-select[id*="po" i]',
+                        '[role="combobox"][id*="postOffice" i]',
+                        '[role="combobox"][id*="po" i]',
+                        'select[name*="postOffice" i]',
+                        'select[formcontrolname*="postOffice" i]',
+                        'select[id*="po" i]',
+                    ],
+                    addr_data.get("post_office", ""),
+                    "Post Office",
+                )
+                logger.info(f"Post Office dropdown result: {po_res}")
+
+                # 6. Validate mandatory form fields before clicking Next/Proceed
+                val_status = await self._validate_address_stage(page)
+                logger.info(f"Address stage validation status: {val_status}")
+
+                if val_status.get("pin_valid") and val_status.get("vtc_selected") and val_status.get("po_selected"):
+                    await self._smart_click_or_submit(
+                        page,
+                        target_texts=["Next", "Proceed", "Save & Continue", "Submit", "Continue"],
+                        selectors=[
+                            'button:has-text("Next")',
+                            'button:has-text("Proceed")',
+                            'button:has-text("Save & Continue")',
+                            'button[type="submit"]',
+                            'input[type="submit"]',
+                        ],
+                    )
+                    logger.info("Autofilled address demographic form, verified cascading dropdowns, and advanced to document stage.")
+                else:
+                    logger.warning(f"Address form validation incomplete: PIN valid={val_status.get('pin_valid')}, VTC selected={val_status.get('vtc_selected')}, Post Office selected={val_status.get('po_selected')}. Next click postponed.")
 
             elif stage == PortalStage.STAGE_4_DOCUMENT:
                 # User clicked "Approve & Upload Document" in app:
@@ -783,6 +851,181 @@ class InteractivePortalManager:
 
         except Exception as action_err:
             logger.warning(f"Error executing stage action on live page: {action_err}")
+
+    async def _select_dropdown_option(
+        self,
+        page: Any,
+        selector_patterns: List[str],
+        target_value: str,
+        field_label: str,
+    ) -> Dict[str, Any]:
+        """
+        Detects standard <select> or Angular mat-select controls and selects an option matching target_value.
+        Strict matching rule: Requires exact normalized string match.
+        Returns dict with status: 'selected', 'multiple_matches', 'no_match', 'not_found', or 'missing_value'.
+        """
+        if not target_value or not target_value.strip():
+            return {
+                "status": "missing_value",
+                "message": f"No verified {field_label} provided in execution context.",
+            }
+
+        norm_target = " ".join(target_value.strip().lower().split())
+
+        for sel in selector_patterns:
+            try:
+                loc = page.locator(sel).first
+                if await loc.count() == 0:
+                    continue
+
+                tag_name = await loc.evaluate("el => el.tagName.toLowerCase()")
+                role_attr = str((await loc.get_attribute("role")) or "")
+                if tag_name == "select":
+                    try:
+                        await page.wait_for_selector(
+                            f"{sel} option:not([value='']):not([value='null'])",
+                            timeout=5000,
+                        )
+                    except Exception:
+                        pass
+
+                    options_data = await loc.evaluate("""
+                        el => Array.from(el.options).map(o => ({
+                            value: o.value,
+                            text: (o.text || o.innerText || '').trim(),
+                            disabled: o.disabled
+                        }))
+                    """)
+
+                    valid_options = [
+                        o for o in options_data
+                        if o["value"] and o["text"] and not any(
+                            ph in o["text"].lower() for ph in ["select", "choose", "--"]
+                        )
+                    ]
+
+                    exact_matches = [
+                        o for o in valid_options
+                        if " ".join(o["text"].lower().split()) == norm_target
+                    ]
+
+                    if len(exact_matches) == 1:
+                        val_to_select = exact_matches[0]["value"]
+                        await loc.select_option(value=val_to_select)
+                        await loc.dispatch_event("change")
+                        await loc.dispatch_event("input")
+                        return {"status": "selected", "value": exact_matches[0]["text"]}
+                    elif len(exact_matches) > 1:
+                        return {
+                            "status": "multiple_matches",
+                            "options": [o["text"] for o in exact_matches],
+                            "message": f"Multiple exact matches found for {field_label} '{target_value}'.",
+                        }
+                    else:
+                        return {
+                            "status": "no_match",
+                            "available_options": [o["text"] for o in valid_options],
+                            "message": f"No exact match found for {field_label} '{target_value}'. Available: {[o['text'] for o in valid_options]}",
+                        }
+
+                elif tag_name == "mat-select" or "combobox" in role_attr:
+                    await loc.click()
+                    # Explicitly wait for Angular CDK overlay container options to mount in DOM (timeout 4000ms)
+                    overlay_selector = ".cdk-overlay-container mat-option, .cdk-overlay-container [role='option'], mat-option, [role='option']"
+                    try:
+                        await page.wait_for_selector(overlay_selector, timeout=4000)
+                    except Exception as wait_err:
+                        logger.debug(f"CDK overlay wait note: {wait_err}")
+
+                    mat_options = page.locator(overlay_selector)
+                    count = await mat_options.count()
+                    available_texts = []
+                    matching_locators = []
+                    for i in range(count):
+                        opt = mat_options.nth(i)
+                        txt = (await opt.inner_text()).strip()
+                        if txt and not any(ph in txt.lower() for ph in ["select", "choose"]):
+                            available_texts.append(txt)
+                            if " ".join(txt.lower().split()) == norm_target:
+                                matching_locators.append((opt, txt))
+
+                    if len(matching_locators) == 1:
+                        selected_opt, selected_txt = matching_locators[0]
+                        await selected_opt.click()
+                        await page.wait_for_timeout(300)
+                        disp_txt = (await loc.inner_text()).strip()
+                        return {"status": "selected", "value": selected_txt, "displayed_text": disp_txt}
+                    elif len(matching_locators) > 1:
+                        await page.keyboard.press("Escape")
+                        return {
+                            "status": "multiple_matches",
+                            "options": [t for _, t in matching_locators],
+                            "message": f"Multiple exact matches found for {field_label} '{target_value}'.",
+                        }
+                    else:
+                        await page.keyboard.press("Escape")
+                        return {
+                            "status": "no_match",
+                            "available_options": available_texts,
+                            "message": f"No exact match found for {field_label} '{target_value}'. Available: {available_texts}",
+                        }
+            except Exception as err:
+                logger.debug(f"Dropdown selection attempt on '{sel}' note: {err}")
+                continue
+
+        return {"status": "not_found", "message": f"{field_label} dropdown control not found on page."}
+
+    async def _validate_address_stage(self, page: Any) -> Dict[str, Any]:
+        """
+        Validates that mandatory fields (PIN, VTC, Post Office) have non-empty valid selections before proceeding.
+        """
+        try:
+            res = await page.evaluate("""
+                () => {
+                    const pinEl = document.querySelector('input[name*="pincode" i], input[id*="pin" i]');
+                    const pinVal = pinEl ? (pinEl.value || '').trim() : '';
+
+                    const vtcEl = document.querySelector('select[name*="vtc" i], select[formcontrolname*="vtc" i], select[id*="vtc" i], mat-select[formcontrolname*="vtc" i]');
+                    let vtcSelected = false;
+                    let vtcVal = '';
+                    if (vtcEl) {
+                        if (vtcEl.tagName.toLowerCase() === 'select') {
+                            const opt = vtcEl.options[vtcEl.selectedIndex];
+                            vtcVal = opt ? (opt.text || opt.value || '').trim() : '';
+                            vtcSelected = Boolean(vtcEl.value && !vtcVal.toLowerCase().includes('select'));
+                        } else {
+                            vtcVal = (vtcEl.innerText || '').trim();
+                            vtcSelected = Boolean(vtcVal && !vtcVal.toLowerCase().includes('select'));
+                        }
+                    }
+
+                    const poEl = document.querySelector('select[name*="postOffice" i], select[formcontrolname*="postOffice" i], select[id*="po" i], select[id*="postOffice" i], mat-select[formcontrolname*="postOffice" i]');
+                    let poSelected = false;
+                    let poVal = '';
+                    if (poEl) {
+                        if (poEl.tagName.toLowerCase() === 'select') {
+                            const opt = poEl.options[poEl.selectedIndex];
+                            poVal = opt ? (opt.text || opt.value || '').trim() : '';
+                            poSelected = Boolean(poEl.value && !poVal.toLowerCase().includes('select'));
+                        } else {
+                            poVal = (poEl.innerText || '').trim();
+                            poSelected = Boolean(poVal && !poVal.toLowerCase().includes('select'));
+                        }
+                    }
+
+                    return {
+                        pin_valid: pinVal.length === 6,
+                        vtc_selected: vtcSelected,
+                        po_selected: poSelected,
+                        vtc_val: vtcVal,
+                        po_val: poVal
+                    };
+                }
+            """)
+            return res
+        except Exception as e:
+            logger.debug(f"Address validation eval note: {e}")
+            return {"pin_valid": False, "vtc_selected": False, "po_selected": False}
 
     async def _smart_fill(self, page: Any, selector_patterns: List[str], value: str) -> bool:
         if not value or not page:
