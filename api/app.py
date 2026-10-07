@@ -21,6 +21,8 @@ from agents.orchestration.pipeline import (
 )
 from demo.runtime import create_demo_orchestrator
 
+from agents.knowledge_based.information_retrieval.schemas.address_resolution import AddressResolutionResult
+
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
@@ -32,6 +34,7 @@ class ConfirmationRequest(BaseModel):
     corrections: dict[str, str] = Field(default_factory=dict)
     session_id: str = Field(default="document-review-session", min_length=1)
     application_id: str | None = None
+    address_resolution: AddressResolutionResult | None = None
 
 
 class ConfirmationResponse(BaseModel):
@@ -118,10 +121,16 @@ def create_app(
         if payload.confirmed is not True:
             raise HTTPException(status_code=400, detail="Explicit confirmation is required before continuing.")
         try:
-            confirmed_data = service.confirm(payload.extraction, payload.corrections)
+            if payload.address_resolution is None:
+                confirmed_data = service.confirm(payload.extraction, payload.corrections)
+            else:
+                confirmed_data = service.confirm(
+                    payload.extraction, payload.corrections,
+                    address_resolution=payload.address_resolution,
+                )
+            context = confirmed_data.to_execution_context(payload.session_id, payload.application_id)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-        context = confirmed_data.to_execution_context(payload.session_id, payload.application_id)
         return ConfirmationResponse(
             confirmed_data=confirmed_data,
             confirmed_context=context.model_dump(mode="json"),

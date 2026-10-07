@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agents.knowledge_based.information_retrieval.schemas.address_resolution import AddressResolutionResult
+
 from agents.utility_based.execution_assistance.schema import ConfirmedExecutionContext, ConfirmedFact, FactStatus
 
 
@@ -80,6 +82,7 @@ class AadhaarConfirmedData(BaseModel):
     new_address: Optional[ConfirmedField] = None
     pincode: Optional[ConfirmedField] = None
     document_id: str = Field(min_length=1)
+    address_resolution: AddressResolutionResult | None = None
 
     def to_execution_context(self, session_id: str, application_id: str | None = None) -> ConfirmedExecutionContext:
         facts: dict[str, ConfirmedFact] = {}
@@ -109,6 +112,13 @@ class AadhaarConfirmedData(BaseModel):
                 facts["uid"] = fact
             elif field_name == "new_address":
                 facts["address"] = fact
+        if self.address_resolution is not None:
+            facts["address_resolution"] = ConfirmedFact(
+                value=self.address_resolution.model_copy(deep=True),
+                provenance="postal_address_resolution_metadata",
+                status=FactStatus.UNCONFIRMED,
+                allowed_for_execution=False,
+            )
         return ConfirmedExecutionContext(
             session_id=session_id,
             application_id=application_id,

@@ -19,6 +19,7 @@ class SourceRegistry:
     """
 
     TRUSTED_AUTHORITY_DOMAINS: Dict[str, List[str]] = {
+        "india_post": ["api.data.gov.in"],
         "aadhaar": [
             "uidai.gov.in",
             "myaadhaar.uidai.gov.in",

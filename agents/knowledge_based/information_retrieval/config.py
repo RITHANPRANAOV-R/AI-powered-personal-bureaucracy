@@ -2,11 +2,19 @@
 Configuration settings for Information Retrieval Agent.
 """
 import os
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class RetrievalConfig(BaseModel):
     """Configuration options for embeddings, vector store, and retrieval."""
+
+    data_gov_in_api_key: SecretStr | None = Field(
+        default_factory=lambda: os.getenv("DATA_GOV_IN_API_KEY") or None,
+        exclude=True,
+        repr=False,
+        validate_default=True,
+        description="Server-side OGD credential from DATA_GOV_IN_API_KEY; never serialized",
+    )
 
     embedding_model_name: str = Field(
         default="sentence-transformers/all-MiniLM-L6-v2",

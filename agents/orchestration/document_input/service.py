@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from agents.knowledge_based.information_retrieval.schemas.address_resolution import AddressResolutionResult
+
 from .extractor import REQUIRED_FIELDS, AadhaarDocumentExtractor
 from .schema import (
     AadhaarConfirmedData,
@@ -39,6 +41,8 @@ class AadhaarDocumentService:
         self,
         extraction: ExtractionResult,
         corrections: dict[str, str] | None = None,
+        *,
+        address_resolution: AddressResolutionResult | None = None,
     ) -> AadhaarConfirmedData:
         if extraction.data is None:
             raise ValueError("There is no extracted data available for confirmation.")
@@ -85,6 +89,7 @@ class AadhaarDocumentService:
         return AadhaarConfirmedData(
             **confirmed_values,
             document_id=extraction.document_id,
+            address_resolution=address_resolution.model_copy(deep=True) if address_resolution is not None else None,
         )
 
 
