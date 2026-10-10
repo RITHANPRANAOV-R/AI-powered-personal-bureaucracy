@@ -36,3 +36,13 @@ build/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+
+# Node.js dependencies and frontend build artifacts
+node_modules/
+**/node_modules/
+.vite/
+**/.vite/
+
+# Frontend build output
+frontend/dist/

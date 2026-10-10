@@ -6,10 +6,8 @@ import {
     ChevronLeft,
     CircleAlert,
     Copy,
-    ExternalLink,
     FileCheck2,
     FileUp,
-    Globe,
     KeyRound,
     LoaderCircle,
     LockKeyhole,
@@ -17,7 +15,6 @@ import {
     PlusCircle,
     ShieldAlert,
     ShieldCheck,
-    Sparkles,
     Workflow,
 } from 'lucide-react';
 import {
@@ -37,10 +34,10 @@ const steps = [
 
 const standardFields = [
     ['name', 'Full Name'],
-    ['aadhaar_number', '12-Digit Aadhaar Number'],
+    ['aadhaar_number', 'Government ID Number'],
     ['date_of_birth', 'Date of Birth'],
     ['gender', 'Gender'],
-    ['masked_aadhaar', 'Masked Reference / VID'],
+    ['masked_aadhaar', 'Masked ID / Reference Number'],
     ['existing_address', 'Current Address'],
     ['new_address', 'New Address (to update)'],
     ['pincode', 'PIN Code'],
@@ -63,7 +60,7 @@ function resultTone(status = '') {
 
 export default function AadhaarAssistant() {
     const [step, setStep] = useState(0);
-    const [request, setRequest] = useState('I want to update my Aadhaar address');
+    const [request, setRequest] = useState('I want to update my address');
     const [file, setFile] = useState(null);
     const [extraction, setExtraction] = useState(null);
     const [confirmedContext, setConfirmedContext] = useState(null);
@@ -261,40 +258,30 @@ export default function AadhaarAssistant() {
         <div className="assistant-shell">
             <header className="topbar">
                 <div className="brand-lockup">
-                    <div className="brand-mark"><Sparkles size={19} /></div>
+                    <div className="brand-mark"><FileCheck2 size={19} /></div>
                     <div>
-                        <div className="brand-name">Aadhaar<span>care</span></div>
-                        <div className="brand-caption">Interactive Bureaucracy Copilot</div>
+                        <div className="brand-name">AI-powered Personal Bureaucracy</div>
+                        <div className="brand-caption">Guidance for everyday public services</div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <button
-                        className="secondary-button"
-                        style={{ height: '34px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
-                        onClick={() => startInteractiveSession()}
-                        disabled={launchingBrowser}
-                    >
-                        <Globe size={14} /> {launchingBrowser ? 'Opening...' : 'Open Official UIDAI'}
-                    </button>
-                    <div className="privacy-note"><LockKeyhole size={14} /> Your document stays private</div>
-                </div>
+                <div className="privacy-note"><LockKeyhole size={14} /> Your document stays private</div>
             </header>
 
             <main className="workspace">
                 <aside className="intro-rail">
-                    <div className="eyebrow">PERSONAL BUREAUCRACY <span>01</span></div>
-                    <h1>One small step at a time.</h1>
-                    <p className="intro-copy">We’ll help you prepare an Aadhaar address update, collect any missing information in-app, and guide every page submission on the official portal.</p>
+                    <div className="eyebrow">PERSONAL BUREAUCRACY</div>
+                    <h1>Get things done,<br />one step at<br />a time.</h1>
+                    <p className="intro-copy">We’ll help you understand what’s needed, prepare the right information, and guide you through the process.</p>
                     <div className="rail-note">
                         <ShieldCheck size={18} />
-                        <span>All page submissions require your explicit consent in this app.</span>
+                        <span>You’re always in control.<br />Nothing is submitted without your approval.</span>
                     </div>
                     <div className="rail-orbit orbit-one" />
                     <div className="rail-orbit orbit-two" />
                 </aside>
 
                 <section className="flow-panel">
-                    <nav className="stepper" aria-label="Aadhaar update progress">
+                    <nav className="stepper" aria-label="Request progress">
                         {steps.map((item, index) => (
                             <div className={`step-item ${index === step ? 'active' : ''} ${index < step ? 'complete' : ''}`} key={item.label}>
                                 <span className="step-number">{index < step ? <Check size={14} /> : `0${index + 1}`}</span>
@@ -310,22 +297,10 @@ export default function AadhaarAssistant() {
                             <h2>What would you like to do?</h2>
                             <p className="section-lede">Tell us in your own words. We’ll ask only for what this request needs.</p>
                             <label className="field-label" htmlFor="request">Your request</label>
-                            <textarea id="request" className="request-box" value={request} onChange={(event) => setRequest(event.target.value)} rows="3" />
-                            <div className="suggestion-row">
-                                <button className="suggestion active" onClick={() => setRequest('I want to update my Aadhaar address')}>Update address <ArrowRight size={15} /></button>
-                                <button className="suggestion" onClick={() => setRequest('I want to check my Aadhaar status')}>Check status</button>
-                            </div>
+                            <textarea id="request" className="request-box" value={request} onChange={(event) => setRequest(event.target.value)} placeholder="Tell us what you need help with — updating an address, checking an application, requesting a document, or understanding a government process." rows="3" />
                             <div className="action-row">
                                 <button className="primary-button" disabled={!request.trim()} onClick={() => setStep(1)}>
                                     Continue <ArrowRight size={17} />
-                                </button>
-                                <button
-                                    className="secondary-button"
-                                    onClick={() => startInteractiveSession()}
-                                    disabled={launchingBrowser}
-                                    title="Open official myAadhaar portal in Chromium now"
-                                >
-                                    <Globe size={15} /> Open Official UIDAI Portal
                                 </button>
                             </div>
                         </section>
@@ -335,11 +310,11 @@ export default function AadhaarAssistant() {
                         <section className="flow-view appear">
                             <button className="back-button" onClick={() => setStep(0)}><ChevronLeft size={16} /> Back</button>
                             <div className="section-kicker">Step two</div>
-                            <h2>Bring your existing Aadhaar</h2>
+                            <h2>Bring your identity document</h2>
                             <p className="section-lede">Upload a clear PDF or image. We’ll read only the details needed for your request.</p>
                             <label className="upload-zone" htmlFor="aadhaar-file">
                                 <span className="upload-icon"><FileUp size={24} /></span>
-                                <strong>{file ? file.name : 'Choose an Aadhaar PDF or image'}</strong>
+                                <strong>{file ? file.name : 'Choose an identity document PDF or image'}</strong>
                                 <span>PDF, PNG, JPG or JPEG · up to 25 MB</span>
                                 <input id="aadhaar-file" type="file" accept=".pdf,.png,.jpg,.jpeg,image/*,application/pdf" onChange={(event) => handleFile(event.target.files?.[0])} />
                             </label>
@@ -364,7 +339,7 @@ export default function AadhaarAssistant() {
                                                 <ShieldAlert size={16} /> Missing information detected
                                             </div>
                                             <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '4px 0 10px' }}>
-                                                Please fill in the missing address or details below so your UIDAI update is accurate.
+                                                Please fill in any missing information below so your request is accurate.
                                             </p>
                                         </div>
                                     )}
@@ -435,9 +410,9 @@ export default function AadhaarAssistant() {
 
                     {step === 3 && (
                         <section className="flow-view appear">
-                            <div className="section-kicker">Step four · Official Portal Copilot</div>
+                            <div className="section-kicker">Step four · Guided submission</div>
                             <h2>Interactive Submission Control</h2>
-                            <p className="section-lede">The official UIDAI portal is open in Chromium. Review each stage and submit using the buttons below.</p>
+                            <p className="section-lede">Your secure application page is open. Review each stage and submit using the buttons below.</p>
 
                             {/* Completed Stages History */}
                             {completedStages.length > 0 && (
@@ -471,14 +446,14 @@ export default function AadhaarAssistant() {
 
                                     {currentStageData.requires_portal_interaction && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#fbbf24', background: 'rgba(245,158,11,0.1)', padding: '8px 10px', borderRadius: '6px', margin: '8px 0 12px' }}>
-                                            <KeyRound size={15} /> <strong>UIDAI Security Notice:</strong> Enter CAPTCHA and Mobile OTP in the Chromium window, then click submit below.
+                                            <KeyRound size={15} /> <strong>Security notice:</strong> Enter the CAPTCHA and mobile verification code in the browser window, then click submit below.
                                         </div>
                                     )}
 
                                     {currentStageData.id === 'stage_3_address' && (
                                         <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '12px', margin: '12px 0' }}>
                                             <div style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Sparkles size={14} /> Demographic Address Fields to Prepopulate & Submit:
+                                                <FileCheck2 size={14} /> Address fields to review and submit:
                                             </div>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
                                                 <div>
@@ -558,18 +533,14 @@ export default function AadhaarAssistant() {
                             {isSessionCompleted && (
                                 <div className="details-card" style={{ width: '100%', borderLeft: '4px solid #16a34a', padding: '1.25rem', background: 'rgba(22,163,74,0.08)', marginBottom: '1.25rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontWeight: 'bold', fontSize: '15px' }}>
-                                        <CheckCircle2 size={20} /> Aadhaar Address Update Submitted Successfully!
+                                        <CheckCircle2 size={20} /> Request submitted successfully!
                                     </div>
                                     <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0.5rem 0 1rem' }}>
-                                        All stages have been approved and submitted through the official UIDAI SSUP portal.
+                                        All stages have been reviewed and submitted.
                                     </p>
                                     <div className="detail-row" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px 15px' }}>
                                         <span>Update Request Number (URN)</span>
                                         <strong style={{ fontSize: '1.25rem', color: '#4ade80', letterSpacing: '1px' }}>{sessionUrn}</strong>
-                                    </div>
-                                    <div className="detail-row" style={{ marginTop: '8px' }}>
-                                        <span>Tracking Portal</span>
-                                        <span>myaadhaar.uidai.gov.in/check-aadhaar-update-status</span>
                                     </div>
                                 </div>
                             )}
@@ -587,7 +558,7 @@ export default function AadhaarAssistant() {
                     {error && <div className="inline-error"><CircleAlert size={16} /> {error}</div>}
                 </section>
             </main>
-            <footer className="footer"><span><ShieldCheck size={14} /> Built for secure, citizen-controlled assistance</span><span>Official UIDAI SSUP Copilot</span></footer>
+            <footer className="footer" aria-hidden="true" />
         </div>
     );
 }
