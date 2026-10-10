@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { interpretExecutionStep } from './executionStepState';
+import React, { useState, useRef } from 'react';
 import {
     ArrowRight,
     Check,
@@ -22,11 +23,123 @@ import {
 } from 'lucide-react';
 import {
     confirmAadhaarDocument,
+    cancelResolverReview,
+    invalidateResolverOperation,
     extractAadhaarDocument,
     launchUidaiBrowser,
     runAadhaarPipeline,
     submitBrowserStep,
+    inspectBrowserStructure,
+    getFinalReview,
+    finalReviewAction,
 } from './documentApi';
+
+export function cleanLabelledAddressPin(address, confirmedPin) {
+    const text = String(address || '');
+    const pattern = /(?:pin\s*code|pincode|postal\s*code)\s*[:=-]\s*([1-9]\d{5})(?!\d)/gi;
+    const labels = [...text.matchAll(pattern)];
+    if (!labels.length) return text;
+    if (confirmedPin && labels.some(match => match[1] !== confirmedPin)) {
+        throw new Error('The PIN label in the new address conflicts with the confirmed PIN. Correct it before continuing.');
+    }
+    if (new Set(labels.map(match => match[1])).size !== 1) throw new Error('Multiple PIN labels require correction.');
+    return text.replace(pattern, '').replace(/[ ,;\-]+$/, '').trim();
+}
+
+export function extractAddressRequest(request) {
+    if (typeof request !== 'string' || !request.trim()) return {};
+    const text = request.trim();
+    const result = {};
+    const capture = text.match(/(?:new\s+address\s*(?:is\s*)?[:=-]?|(?:update|change|modify)\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|shifted\s+to|moved\s+to|living\s+at|residing\s+at|address\s+(?:is|was|=|:))\s*([\s\S]+)/i);
+    const legacy = text.match(/(?:aadhaar\s+address\s+(?:update|change)|change\s+aadhaar\s+address)\s*[-–—.]?\s*([\s\S]+)/i);
+    let candidate = capture?.[1] || legacy?.[1];
+    if (!candidate && !/check status/i.test(text) && text.length > 15 && !/^(?:i want to |please )?(?:update|change|modify)\s+(?:my\s+)?(?:aadhaar\s+)?address\s*$/i.test(text)) candidate = text;
+    if (candidate) {
+        candidate = candidate.replace(/^from\b.*?\bto\s+/i, '').replace(/(?:\.\s*|,\s*)(?:please\s+)?(?:update|change|modify)\b[\s\S]*$/i, '').trim();
+        if (candidate.length >= 3) result.newAddress = candidate;
+    }
+    const pins = [...new Set((result.newAddress || text).match(/\b[1-9]\d{5}\b/g) || [])];
+    if (pins.length > 1) throw new Error('Multiple PIN values in the proposed address require an explicit correction.');
+    if (pins.length) result.pincode = pins[0];
+    if (result.newAddress) result.newAddress = cleanLabelledAddressPin(result.newAddress, result.pincode);
+    return result;
+}
+
+function Value({ value }) {
+    if (value === null || value === undefined || value === '' || value === 'UNKNOWN') return <strong>UNKNOWN</strong>;
+    if (Array.isArray(value)) return value.length ? <ul>{value.map((item, index) => <li key={index}><Value value={item} /></li>)}</ul> : <strong>UNKNOWN</strong>;
+    if (typeof value === 'object' && Object.keys(value).length === 0) return <strong>UNKNOWN</strong>;
+    if (typeof value === 'object') return <dl>{Object.entries(value).map(([key, item]) => <React.Fragment key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd><Value value={item} /></dd></React.Fragment>)}</dl>;
+    return <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{String(value)}</span>;
+}
+
+export function FinalReviewPanel({ review, busy, onApprove, onEdit, onCancel }) {
+    if (!review?.package) return <section aria-label="Final review"><h3>FINAL REVIEW</h3><p>Submission information is UNKNOWN. Approval is unavailable.</p></section>;
+    const blocked = review.state !== 'REVIEW_READY' || review.blocking_reasons?.length > 0;
+    const groups = {
+        Service: ['service'],
+        Information: ['citizen_information', 'extracted_document_information', 'corrected_information', 'current_values', 'new_values', 'address', 'pincode'],
+        Documents: ['supporting_documents', 'document_type', 'upload_validation'],
+        Requirements: ['requirements', 'fees', 'submission_validation'],
+        Declarations: ['declarations'],
+        Warnings: ['warnings'],
+    };
+    return <section aria-label="Final review" className="details-card">
+        <h3>FINAL REVIEW</h3><p>{review.state}</p>
+        <p>Review every value before approval. This page does not submit your application.</p>
+        {Object.entries(groups).map(([name, keys]) => <section key={name}><h4>{name}</h4>{keys.map(key => <div key={key}><strong>{key.replaceAll('_', ' ')}</strong><Value value={review.package[key]} /></div>)}</section>)}
+        <p>UNKNOWN fields: {(review.unknown_fields || []).join(', ') || 'None'}</p>
+        <ul>{(review.blocking_reasons || []).map(reason => <li key={reason}>{reason}</li>)}</ul>
+        <p>Approval expires after 15 minutes and permits one attempt. Changes require review and approval again.</p>
+        <button type="button" disabled={busy} onClick={onEdit}>Edit / Correct</button>
+        <button type="button" disabled={busy || blocked} onClick={() => onApprove(review.binding)}>Approve &amp; Submit</button>
+        <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
+    </section>;
+}
+
+export function projectedAddressInputs(context) {
+    // Do not manufacture quick corrections that invalidate a reviewed projection.
+    const facts = context.facts;
+    const read = (...keys) => keys.map(key => facts[key]?.value).find(value => typeof value === 'string' && value.trim()) || '';
+    return {
+        new_address: cleanLabelledAddressPin(read('new_address'), read('pincode')),
+        pincode: read('pincode'), house_no: read('house_no', 'house', 'building', 'flat'),
+        street: read('street', 'road', 'lane'), locality: read('locality', 'area', 'sector'),
+        landmark: read('landmark'), care_of: read('care_of'),
+    };
+}
+
+export function resolverRequestOptions(action, review) {
+    if (action === 'resolve') return { resolve_address: true };
+    if (action === 'continue_without_projection') return {};
+    if (action !== 'confirm_post_office') throw new Error('Explicit Post Office confirmation is required.');
+    const result = review?.confirmed_data?.address_resolution;
+    if (review?.resolver_projection?.eligible !== true || result?.status !== 'resolved'
+            || result.conflicts?.length || result.post_office?.status !== 'resolved') {
+        throw new Error('Resolve and review an eligible, unambiguous Post Office before explicitly confirming projection.');
+    }
+    if (!review.review_reference) throw new Error('Server-published review reference is required.');
+    return { review_reference: review.review_reference, confirm_resolver_projection: true };
+}
+
+export function ResolverReviewPanel({ review, busy, onResolve, onConfirm, onCancel }) {
+    const resolution = review?.confirmed_data?.address_resolution;
+    return <section aria-label="Post Office options" className="details-card">
+        <h3>Check Post Office (optional)</h3>
+        <p>Look up Post Office options for your new PIN. Nothing changes unless you explicitly confirm a suitable option. This does not approve final submission.</p>
+        <button type="button" disabled={busy} onClick={onResolve}>Look up Post Office options</button>
+        {review && <>
+            <p>Lookup status: {resolution?.status || 'UNKNOWN'}</p>
+            <p>No candidate is selected automatically. Check the PIN, candidates, conflicts and source evidence.</p>
+            <Value value={resolution} />
+            {!review.resolver_projection?.eligible && <p role="alert">{review.resolver_projection?.reason || 'No suitable Post Office is available. Check the new PIN or continue without selecting a Post Office.'}</p>}
+            <p>Post Office option to confirm: {review.resolver_projection?.post_office || 'UNKNOWN'}</p>
+            <button type="button" disabled={busy || review.resolver_projection?.eligible !== true}
+                onClick={onConfirm}>Use this Post Office &amp; continue</button>
+        </>}
+        {(review || busy) && <button type="button" onClick={onCancel}>Cancel Post Office lookup</button>}
+    </section>;
+}
 
 const steps = [
     { label: 'Your request', short: 'Request' },
@@ -53,12 +166,92 @@ function fieldValue(data, key) {
     return typeof field === 'object' ? field?.value : field;
 }
 
+export function ReviewDetails({ data, corrections = {}, onCorrect, busy, addressOnly = false,
+    review, includePostOffice = false, onPostOfficeChoice }) {
+    const fields = addressOnly ? standardFields.filter(([key]) => ['existing_address', 'new_address', 'pincode'].includes(key)) : standardFields;
+    const eligible = review?.resolver_projection?.eligible === true;
+    const office = eligible ? review.resolver_projection.post_office : null;
+    return <div className="details-card" aria-label="Review your details">
+        {fields.map(([key, label]) => {
+            const value = corrections[key] || fieldValue(data, key);
+            return <div className="detail-row" key={key}>
+                <span>{label}</span>
+                <strong className={!value ? 'detail-missing' : undefined}>{value || (key === 'new_address' ? 'Click "Fill" to add new address' : 'Click "Fill" to add this detail')}</strong>
+                <div className="detail-actions">
+                    {corrections[key] && <em>updated</em>}
+                    <button type="button" className="text-button detail-edit" disabled={busy}
+                        aria-label={`${value ? 'Change' : 'Fill'} ${label}`} onClick={() => onCorrect(key)}>
+                        {value ? <Pencil size={12} /> : <PlusCircle size={12} />}{value ? 'Change' : 'Fill'}
+                    </button>
+                </div>
+            </div>;
+        })}
+        {office && <div className="detail-row">
+            <span>Post Office</span><strong>{office}</strong>
+            <label className="post-office-choice"><input type="checkbox" checked={includePostOffice} disabled={busy}
+                onChange={(event) => onPostOfficeChoice(event.target.checked)} />Use this Post Office</label>
+        </div>}
+        {review && !eligible && ['ambiguous', 'conflict'].includes(review.confirmed_data?.address_resolution?.status) &&
+            <div className="detail-row"><span>Post Office</span><strong>No option selected</strong><span>Check the address or choose on the official form.</span></div>}
+    </div>;
+}
+
+export function AddressReview(props) {
+    return ReviewDetails({ ...props, addressOnly: true });
+}
+
+export function canCheckPostOffice(extracted, edits = {}) {
+    const data = extracted?.data;
+    if (!data) return false;
+    const value = (key) => edits[key] || fieldValue(data, key) || '';
+    return ['name', 'date_of_birth', 'existing_address', 'new_address'].every((key) => String(value(key)).trim())
+        && /^[1-9]\d{5}$/.test(value('pincode'))
+        && [...Object.keys(extracted.conflicts || {}), ...Object.keys(extracted.validation_errors || {})].every((key) => edits[key]);
+}
+
 function resultTone(status = '') {
     const value = status.toLowerCase();
     if (value.includes('completed')) return 'success';
     if (value.includes('blocked') || value.includes('failed')) return 'danger';
     if (value.includes('human') || value.includes('pending') || value.includes('clarif')) return 'warning';
     return 'info';
+}
+
+function TemporaryPortalInspection({ sessionId, operation, submitting }) {
+    const [snapshot, setSnapshot] = useState(null);
+    const [busy, setBusy] = useState(false);
+    async function inspect() {
+        if (busy || submitting) return;
+        const revision = operation.current;
+        setBusy(true);
+        setSnapshot(null);
+        try {
+            const data = await inspectBrowserStructure(sessionId);
+            if (revision === operation.current) setSnapshot({revision, data});
+        } catch (err) {
+            const explanations = {
+                404: 'Diagnostic unavailable: the endpoint is not loaded, disabled, or expired.',
+                403: 'Diagnostic denied: origin or session authorization was rejected.',
+                401: 'Diagnostic denied: session authorization is required.',
+                409: 'Diagnostic unavailable: the existing session is busy, changed, or cannot be inspected safely.',
+            };
+            const diagnosticReasons = {
+                PORTAL_DIAGNOSTIC_DISABLED: 'Diagnostic disabled at backend startup. Enabling it requires an agreed controlled restart; the current session has not been changed.',
+                PORTAL_DIAGNOSTIC_EXPIRED: 'The temporary diagnostic window expired. Do not repeat portal actions; agree on controlled recovery before restarting.',
+            };
+            if (revision === operation.current) setSnapshot({revision, data:{
+                status: diagnosticReasons[err?.code] || explanations[err?.status] || 'Diagnostic unavailable: no structural capture was obtained.',
+                http_status: Number.isInteger(err?.status) ? err.status : null,
+            }});
+        } finally { setBusy(false); }
+    }
+    return <section aria-label="Temporary portal inspection">
+        <button className="secondary-button" onClick={inspect} disabled={submitting || busy}>
+            {busy ? 'Inspecting structure…' : 'Inspect page structure (read-only)'}
+        </button>
+        <p>This diagnostic does not retry actions or clear uncertainty. Unrecognized text is redacted.</p>
+        {snapshot?.revision === operation.current && <pre>{JSON.stringify(snapshot.data, null, 2)}</pre>}
+    </section>;
 }
 
 export default function AadhaarAssistant() {
@@ -80,9 +273,10 @@ export default function AadhaarAssistant() {
     const [browserSessionActive, setBrowserSessionActive] = useState(false);
     const [currentStageData, setCurrentStageData] = useState(null);
     const [completedStages, setCompletedStages] = useState([]);
-    const [sessionUrn, setSessionUrn] = useState('0000/12345/67890');
+    const [sessionUrn, setSessionUrn] = useState('');
     const [isSessionCompleted, setIsSessionCompleted] = useState(false);
     const [submittingStep, setSubmittingStep] = useState(false);
+    const [finalReview, setFinalReview] = useState(null);
     const [launchingBrowser, setLaunchingBrowser] = useState(false);
     const [stepAddressInputs, setStepAddressInputs] = useState({
         new_address: '',
@@ -94,91 +288,118 @@ export default function AadhaarAssistant() {
         care_of: '',
     });
 
+    const [includePostOffice, setIncludePostOffice] = useState(false);
+    const [resolverReview, setResolverReview] = useState(null);
+    // Keep inspection reachable without reloading and losing the in-memory capability.
+    // The backend independently enforces opt-in, expiry, origin and session authorization.
+    const inspectionEnabled = globalThis.location?.origin === 'http://localhost:5173';
+
+    const executionOperation = useRef(0);
+    const reviewOperation = useRef(0);
+    function invalidateReview() {
+        reviewOperation.current += 1;
+        invalidateResolverOperation(sessionId);
+        setResolverReview(null);
+        setIncludePostOffice(false);
+    }
     const extractionData = extraction?.data;
 
     async function handleFile(fileToRead) {
         if (!fileToRead) return;
+        invalidateReview();
+        const operation = reviewOperation.current;
         setFile(fileToRead);
         setError('');
         setStatus('extracting');
         setStep(2);
 
-        // Extract new address / PIN from user request string if present
-        const userContext = {};
-        if (request && typeof request === 'string' && request.trim()) {
-            const reqStr = request.trim();
-            const pinMatch = reqStr.match(/\b[1-9]\d{5}\b/);
-            if (pinMatch) {
-                userContext.pincode = pinMatch[0];
-            }
-
-            // Clean full request text for address extraction
-            let text = reqStr.replace(/(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$/i, '');
-            text = text.split(/(?:\.|\b)(?:please\s+)?(?:update|change|modify)\b/i)[0].trim();
-
-            const addrMatch = text.match(/(?:new\s+address\s*[:=-]?|update\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|change\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|modify\s+(?:my\s+)?(?:aadhaar\s+)?address\s+(?:to|is|with)[:=-]?|shifted\s+to|moved\s+to|living\s+at|residing\s+at|address\s+(?:is|was|=|:))\s*([\s\S]+)/i);
-
-            let candidate = null;
-            if (addrMatch && addrMatch[1]) {
-                candidate = addrMatch[1].trim();
-                const fromToMatch = candidate.match(/\bfrom\b.*?\bto\s+(.+)/i);
-                if (fromToMatch && fromToMatch[1]) {
-                    candidate = fromToMatch[1].trim();
-                }
-            } else {
-                const sentenceMatch = text.match(/(?:aadhaar\s+address\s+(?:update|change)|change\s+aadhaar\s+address)\s*[-–—.]?\s*([\s\S]+)/i);
-                if (sentenceMatch && sentenceMatch[1]) {
-                    candidate = sentenceMatch[1].trim();
-                } else if (
-                    !text.toLowerCase().includes('check status') &&
-                    text.length > 15 &&
-                    !text.toLowerCase().startsWith('i want to update my aadhaar address') &&
-                    !text.toLowerCase().startsWith('please update my aadhaar address')
-                ) {
-                    candidate = text.trim();
-                }
-            }
-
-            if (candidate) {
-                candidate = candidate.replace(/(?:,\s*)?(?:pin\s*(?:code)?)?\s*[-–—\s]*\b[1-9]\d{5}\b.*$/i, '');
-                candidate = candidate.replace(/^[\s.,-–—;:]+|[\s.,-–—;:]+$/g, '');
-                if (candidate && candidate.length >= 3) {
-                    userContext.newAddress = candidate;
-                }
-            }
-        }
-
         try {
-            const response = await extractAadhaarDocument(fileToRead, userContext);
-            if (response.status && response.status !== 'success') {
+            const response = await extractAadhaarDocument(fileToRead, extractAddressRequest(request));
+            if (operation !== reviewOperation.current) return;
+            if (response.status && !['success', 'missing_required_fields'].includes(response.status)) {
                 throw new Error(response.error || 'Some details could not be read reliably.');
             }
             setExtraction(response);
+            if (response.status === 'missing_required_fields') setError((response.warnings || []).join(' ' ) || 'Correct missing or conflicting fields before confirmation.');
             setStatus('idle');
+            if (canCheckPostOffice(response, corrections)) void requestResolution(response, corrections);
         } catch (requestError) {
+            if (operation !== reviewOperation.current || requestError.code === 'STALE_REVIEW_OPERATION') return;
+            if (requestError.code === 'REVIEW_CAPABILITY_AUTH_FAILED') invalidateReview();
             setStatus('error');
             setError(requestError.message);
         }
     }
 
-    async function confirmDetails() {
+    async function cancelProjectionReview() {
+        invalidateReview();
+        const operation = reviewOperation.current;
+        setStatus('confirming');
+        try { await cancelResolverReview(sessionId); if (operation === reviewOperation.current) setStatus('idle'); }
+        catch (requestError) {
+            if (operation !== reviewOperation.current) return;
+            setError(requestError.message); setStatus('error');
+        }
+    }
+
+    async function requestResolution(inputExtraction = extraction, inputCorrections = corrections) {
+        if (isBusy) return;
+        setStatus('confirming');
+        setError('');
+        invalidateReview();
+        const operation = reviewOperation.current;
+        try {
+            const response = await confirmAadhaarDocument(inputExtraction, inputCorrections, sessionId,
+                resolverRequestOptions('resolve'));
+            if (operation !== reviewOperation.current) return;
+            setResolverReview(response);
+            setStatus('idle');
+        } catch (requestError) {
+            if (operation !== reviewOperation.current || requestError.code === 'STALE_REVIEW_OPERATION') return;
+            if (requestError.code === 'REVIEW_CAPABILITY_AUTH_FAILED') {
+                invalidateReview();
+                setStatus('error');
+                setError('Your review session could not be verified. Confirm your details again.');
+            } else if (requestError.status === 400 || requestError.status === 422 || requestError.status === 403) {
+                setStatus('error');
+                setError(requestError.message);
+            } else {
+                setStatus('idle');
+                setError('Post Office options could not be checked. Your address and PIN are unchanged; you can confirm your details without selecting a Post Office.');
+            }
+        }
+    }
+
+    async function confirmDetails(action = 'continue_without_projection') {
+        if (isBusy) return;
+        const operation = ++reviewOperation.current;
         setStatus('confirming');
         setError('');
         try {
-            const response = await confirmAadhaarDocument(extraction, corrections, sessionId);
+            const options = resolverRequestOptions(action, resolverReview);
+            const response = await confirmAadhaarDocument(extraction, corrections, sessionId, options);
+            if (operation !== reviewOperation.current) return;
             const ctx = response.confirmed_context || response;
             setConfirmedContext(ctx);
             setStatus('idle');
             setStep(3);
             // Automatically initiate interactive session on confirmation
-            await startInteractiveSession(ctx);
+            if (browserSessionActive) setStepAddressInputs(projectedAddressInputs(ctx));
+            else await startInteractiveSession(ctx);
         } catch (requestError) {
+            if (operation !== reviewOperation.current || requestError.code === 'STALE_REVIEW_OPERATION') return;
+            if (requestError.code === 'REVIEW_CAPABILITY_AUTH_FAILED') invalidateReview();
             setStatus('error');
             setError(requestError.message);
         }
     }
 
+    function confirmReviewedDetails() {
+        return confirmDetails(includePostOffice ? 'confirm_post_office' : 'continue_without_projection');
+    }
+
     async function startInteractiveSession(ctx) {
+        executionOperation.current += 1;
         setLaunchingBrowser(true);
         setError('');
         try {
@@ -187,13 +408,14 @@ export default function AadhaarAssistant() {
             const addrVal = corrections.new_address || fieldValue(extractionData, 'new_address') || corrections.existing_address || fieldValue(extractionData, 'existing_address') || '';
             const pinVal = corrections.pincode || fieldValue(extractionData, 'pincode') || '';
 
-            setStepAddressInputs((prev) => ({
+            setStepAddressInputs((prev) => ctx?.facts
+                ? projectedAddressInputs(ctx) : ({
                 ...prev,
                 new_address: addrVal,
                 pincode: pinVal,
-                house_no: prev.house_no || (addrVal.split(',')[0] || ''),
-                street: prev.street || (addrVal.split(',')[1] || ''),
-                locality: prev.locality || (addrVal.split(',')[2] || ''),
+                house_no: prev.house_no || '',
+                street: prev.street || '',
+                locality: prev.locality || '',
             }));
 
             const contextToUse = ctx || confirmedContext || {
@@ -211,10 +433,10 @@ export default function AadhaarAssistant() {
                 document_refs: file ? [file.name] : ['Uploaded_Aadhaar_Document.pdf'],
             };
 
-            const sessionResponse = await launchUidaiBrowser(contextToUse, "0000/12345/67890", true);
+            const sessionResponse = await launchUidaiBrowser(contextToUse, "", true);
             setBrowserSessionActive(true);
             setCurrentStageData(sessionResponse.stage_info);
-            setSessionUrn(sessionResponse.urn || '0000/12345/67890');
+            setSessionUrn('');
         } catch (err) {
             setError(`Could not start browser session: ${err.message}`);
         } finally {
@@ -222,27 +444,81 @@ export default function AadhaarAssistant() {
         }
     }
 
+    async function openFinalReview() {
+        setError('');
+        try {
+            const response = await getFinalReview(sessionId);
+            setFinalReview(response.final_review || null);
+            if (!response.final_review) setError(response.execution_result?.message || 'Final review is unavailable.');
+        } catch (err) { setError(err.message); }
+    }
+
+    async function handleFinalReviewAction(action, binding) {
+        if (submittingStep) return;
+        setSubmittingStep(true);
+        try {
+            const response = await finalReviewAction(sessionId, action, binding);
+            if (action === 'Edit / Correct') {
+                setFinalReview(null); setStep(2); setCorrecting(true);
+                setConfirmedContext(null);
+            } else if (action === 'Cancel') {
+                setFinalReview(null);
+            } else {
+                const outcome = interpretExecutionStep(response, 'stage_5_review');
+                if (outcome.final) {
+                    setIsSessionCompleted(true); setCurrentStageData(null); setSessionUrn(response.urn);
+                } else {
+                    setError(`${outcome.status}: ${outcome.message}`);
+                    const refreshed = await getFinalReview(sessionId);
+                    setFinalReview(refreshed.final_review || null);
+                }
+            }
+        } catch (err) { setError(err.message); }
+        finally { setSubmittingStep(false); }
+    }
+
     async function handleAppSubmitStep() {
-        if (!browserSessionActive) return;
+        if (!browserSessionActive || submittingStep || !currentStageData) return;
+        if (currentStageData.id === 'stage_5_review') { await openFinalReview(); return; }
+        const operation = ++executionOperation.current;
+        const submittedStage = currentStageData.id;
         setSubmittingStep(true);
         setError('');
         try {
-            const stepResult = await submitBrowserStep(sessionId, true, '', stepAddressInputs);
-            if (currentStageData) {
-                setCompletedStages((prev) => [...prev, currentStageData]);
+            if (submittedStage === 'stage_3_address' && (!stepAddressInputs.house_no.trim() || !stepAddressInputs.street.trim())) {
+                setError('Confirm House / Building and Street / Road in the fields above. A combined address alone cannot determine these fields safely.');
+                return;
             }
-            if (stepResult.is_completed) {
+            const stepResult = await submitBrowserStep(sessionId, true, '', stepAddressInputs);
+            if (operation !== executionOperation.current) return;
+            const outcome = interpretExecutionStep(stepResult, submittedStage);
+            if (!outcome.completed) {
+                const diagnostic = stepResult.execution_diagnostic;
+                const stageLabel = {stage_1a_otp: 'OTP checkpoint', stage_1b_login: 'dashboard',
+                    stage_2_service: 'address form', stage_3_address: 'document page', stage_4_document: 'document acceptance'}[diagnostic?.stage_verifier];
+                const actualCheck = {address_destination:'address destination', address_form_readiness:'address form readiness',
+                    address_values:'address readback', document_destination:'document page'}[diagnostic?.verification_check] || stageLabel;
+                const marker = diagnostic?.verifier_version === 'services-dashboard-v2'
+                    && ['new_attempt', 'retained', 'none'].includes(diagnostic.result_origin)
+                    ? ` [services-dashboard-v2; ${diagnostic.result_origin}; verifier ${diagnostic.verifier_invoked === true ? 'invoked' : 'not invoked'}${actualCheck ? `; checking ${actualCheck}` : ''}]`
+                    : ' [runtime diagnostic unavailable]';
+                setError(`${outcome.status}: ${outcome.message}${marker}`);
+                return;
+            }
+            setCompletedStages((prev) => prev.some((stage) => stage.id === currentStageData.id)
+                ? prev : [...prev, currentStageData]);
+            if (outcome.final) {
                 setIsSessionCompleted(true);
                 setCurrentStageData(null);
                 setSessionUrn(stepResult.urn);
             } else {
                 setCurrentStageData(stepResult.stage_info);
-                if (stepResult.urn) setSessionUrn(stepResult.urn);
+
             }
         } catch (err) {
-            setError(`Step submission failed: ${err.message}`);
+            if (operation === executionOperation.current) setError(`Step submission failed: ${err.message}`);
         } finally {
-            setSubmittingStep(false);
+            if (operation === executionOperation.current) setSubmittingStep(false);
         }
     }
 
@@ -265,10 +541,13 @@ export default function AadhaarAssistant() {
     }
 
     function saveCorrection() {
-        if (!correctionValue.trim()) return;
-        setCorrections((current) => ({ ...current, [correctionField]: correctionValue.trim() }));
+        if (isBusy || !correctionValue.trim()) return;
+        invalidateReview(); // Corrections invalidate the published result and citizen choice.
+        const edits = { ...corrections, [correctionField]: correctionValue.trim() };
+        setCorrections(edits);
         setCorrecting(false);
         setCorrectionValue('');
+        if (canCheckPostOffice(extraction, edits)) void requestResolution(extraction, edits);
     }
 
     function copyDemographics() {
@@ -415,60 +694,9 @@ export default function AadhaarAssistant() {
                                         </div>
                                     )}
 
-                                    <div className="details-card">
-                                        {standardFields.map(([key, label]) => {
-                                            const val = corrections[key] || fieldValue(extractionData, key);
-                                            const isMissing = !val;
-                                            return (
-                                                <div className="detail-row" key={key}>
-                                                    <span>{label}</span>
-                                                    <strong style={{ color: isMissing ? '#f59e0b' : 'inherit' }}>
-                                                        {val || (key === 'new_address' ? 'Click "Fill" to add new address' : key === 'pincode' ? 'Click "Fill" to add PIN' : 'Not found (click Fill to enter)')}
-                                                    </strong>
-                                                    {corrections[key] ? (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <em style={{ color: '#10b981' }}>updated</em>
-                                                            <button
-                                                                className="text-button"
-                                                                style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                                                onClick={() => {
-                                                                    setCorrectionField(key);
-                                                                    setCorrectionValue(val || '');
-                                                                    setCorrecting(true);
-                                                                }}
-                                                            >
-                                                                <Pencil size={12} /> Change
-                                                            </button>
-                                                        </div>
-                                                    ) : isMissing ? (
-                                                        <button
-                                                            className="text-button"
-                                                            style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                                            onClick={() => {
-                                                                setCorrectionField(key);
-                                                                setCorrectionValue('');
-                                                                setCorrecting(true);
-                                                            }}
-                                                        >
-                                                            <PlusCircle size={12} /> Fill
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            className="text-button"
-                                                            style={{ color: '#0ea5e9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                                            onClick={() => {
-                                                                setCorrectionField(key);
-                                                                setCorrectionValue(val || '');
-                                                                setCorrecting(true);
-                                                            }}
-                                                        >
-                                                            <Pencil size={12} /> Change
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    <ReviewDetails data={extractionData} corrections={corrections} busy={isBusy}
+                                        review={resolverReview} includePostOffice={includePostOffice} onPostOfficeChoice={setIncludePostOffice}
+                                        onCorrect={(key) => { setCorrectionField(key); setCorrectionValue(corrections[key] || fieldValue(extractionData, key) || ''); setCorrecting(true); }} />
 
                                     {correcting && (
                                         <div className="correction-panel">
@@ -497,7 +725,7 @@ export default function AadhaarAssistant() {
                                                 <Copy size={16} /> Copy Details
                                             </button>
                                         </div>
-                                        <button className="primary-button" onClick={confirmDetails} disabled={isBusy}>
+                                        <button className="primary-button" onClick={confirmReviewedDetails} disabled={isBusy}>
                                             <CheckCircle2 size={17} /> Confirm details
                                         </button>
                                     </div>
@@ -607,6 +835,9 @@ export default function AadhaarAssistant() {
                                                     />
                                                 </div>
                                             </div>
+                                            {(!stepAddressInputs.house_no || !stepAddressInputs.street) && (
+                                                <p role="status">Confirm House / Building and Street / Road above before filling the portal. A combined address does not determine these fields safely. Enter Area / Locality only if you can confirm it; city and locality are not automatically interchangeable.</p>
+                                            )}
                                             {(!stepAddressInputs.new_address && !stepAddressInputs.house_no) && (
                                                 <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '6px' }}>
                                                     ⚠️ Missing detail detected: Please enter your House No or New Address above before clicking submit.
@@ -615,16 +846,22 @@ export default function AadhaarAssistant() {
                                         </div>
                                     )}
 
-                                    <div style={{ marginTop: '1rem' }}>
+                                    {finalReview && <FinalReviewPanel review={finalReview} busy={submittingStep}
+                                        onApprove={(binding) => handleFinalReviewAction('Approve & Submit', binding)}
+                                        onEdit={() => handleFinalReviewAction('Edit / Correct')}
+                                        onCancel={() => handleFinalReviewAction('Cancel')} />}
+                                    {currentStageData.id === 'stage_4_document' && !finalReview &&
+                                        <button type="button" onClick={openFinalReview}>Review submission package</button>}
+                                    {!finalReview && <div style={{ marginTop: '1rem' }}>
                                         <button
                                             className="primary-button"
                                             style={{ width: '100%', minHeight: '44px', fontSize: '13px', background: 'linear-gradient(110deg, #0284c7, #0ea5e9)', color: '#fff', borderColor: '#0284c7', boxShadow: '0 4px 14px rgba(2,132,199,0.3)' }}
                                             onClick={handleAppSubmitStep}
                                             disabled={submittingStep}
                                         >
-                                            {submittingStep ? <><LoaderCircle size={16} className="loader-ring" /> Submitting Step...</> : <><CheckCircle2 size={16} /> {currentStageData.button_label}</>}
+                                            {submittingStep ? <><LoaderCircle size={16} className="loader-ring" /> Submitting Step...</> : <><CheckCircle2 size={16} /> {currentStageData.id === 'stage_5_review' ? 'Open Final Review' : currentStageData.button_label}</>}
                                         </button>
-                                    </div>
+                                    </div>}
                                 </div>
                             )}
 
@@ -658,6 +895,8 @@ export default function AadhaarAssistant() {
                             </div>
                         </section>
                     )}
+                    {inspectionEnabled && browserSessionActive && <TemporaryPortalInspection sessionId={sessionId}
+                        operation={executionOperation} submitting={submittingStep} />}
                     {error && <div className="inline-error"><CircleAlert size={16} /> {error}</div>}
                 </section>
             </main>

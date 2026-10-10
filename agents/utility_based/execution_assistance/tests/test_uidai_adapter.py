@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+from unittest.mock import patch
 from agents.orchestration.workflow_planning.schema import PlanStep, StepStatus, StepType
 from agents.utility_based.execution_assistance import (
     AdapterStatus,
@@ -61,8 +61,9 @@ def test_uidai_adapter_document_requirement_step_success():
         required_document_refs=["doc-proof-of-address-1"],
     )
     result = adapter.execute_step(step, _sample_context(doc_refs=["doc-proof-of-address-1"]))
-    assert result.status == AdapterStatus.COMPLETED
-    assert "Supporting documentation verified" in result.outcome
+    assert result.status == AdapterStatus.UNKNOWN
+    assert "not been verified" in result.outcome
+    assert result.portal_reference is None
 
 
 def test_uidai_adapter_document_requirement_step_missing_ref():
@@ -116,7 +117,7 @@ def test_uidai_adapter_portal_action_invalid_otp():
     assert "6 digits" in result.outcome
 
 
-def test_uidai_adapter_portal_action_valid_otp_generates_urn():
+def test_uidai_adapter_portal_action_valid_otp_does_not_fabricate_reference():
     adapter = UIDAIExecutionAdapter(require_otp=True)
     step = PlanStep(
         step_id="perform-aadhaar-action",
@@ -126,9 +127,11 @@ def test_uidai_adapter_portal_action_valid_otp_generates_urn():
         step_type=StepType.USER_ACTION,
         status=StepStatus.READY,
     )
-    result = adapter.execute_step(step, _sample_context(otp="482910"))
-    assert result.status == AdapterStatus.COMPLETED
-    assert result.portal_reference is not None
-    assert re.match(r"^\d{4}/\d{5}/\d{5}$", result.portal_reference)
-    assert "URN" in result.outcome
-    assert "SRN" in result.outcome
+    with patch("agents.utility_based.execution_assistance.browser_autofill.launch_in_chromium") as launch:
+        result = adapter.execute_step(step, _sample_context(otp="482910"))
+    assert result.status == AdapterStatus.UNKNOWN
+    assert result.portal_reference is None
+    assert result.execution_result.official_reference is None
+    launch.assert_called_once()
+    assert launch.call_args.args[1] == ""
+    assert "submitted successfully" not in result.outcome

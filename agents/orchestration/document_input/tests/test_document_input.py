@@ -228,9 +228,20 @@ Address: 12 Main Street, Chennai 600001
 
     context = confirmed.to_execution_context("session-1")
 
-    assert set(context.facts) == {"name", "date_of_birth", "gender", "masked_aadhaar", "existing_address"}
-    assert all(fact.allowed_for_execution for fact in context.facts.values())
-    assert all(fact.status.value == "confirmed" for fact in context.facts.values())
+    executable = {key: fact for key, fact in context.facts.items() if fact.allowed_for_execution}
+    assert set(executable) == {"name", "date_of_birth", "gender", "masked_aadhaar", "existing_address", "pincode"}
+    assert extracted.data.pincode.value == executable["pincode"].value == "600001"
+    assert extracted.data.pincode.provenance == FieldProvenance.EXTRACTED_FROM_DOCUMENT
+    assert extracted.data.pincode.source_document_id == extracted.document_id
+    # Explicit confirmation is distinct from correction; original extraction remains unchanged.
+    assert confirmed.pincode.provenance == FieldProvenance.USER_CONFIRMED
+    assert executable["pincode"].provenance != FieldProvenance.USER_CORRECTED.value
+    assert executable["pincode"].source_document_id == extracted.document_id
+    assert all(fact.status.value == "confirmed" for fact in executable.values())
+    evidence = context.facts["document_evidence"]
+    assert evidence.allowed_for_execution is False
+    assert evidence.status.value == "unconfirmed"
+    assert evidence.value["fields"]["name"]["page_number"] == 1
 
 
 def test_masked_aadhaar_extraction_variations():

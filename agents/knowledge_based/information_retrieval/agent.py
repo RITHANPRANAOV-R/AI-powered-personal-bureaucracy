@@ -225,10 +225,8 @@ class InformationRetrievalAgent:
 
         if isinstance(item, UserDocumentInput):
             if item.file_path and os.path.exists(item.file_path):
-                return self.doc_pipeline.process_document(
-                    file_path=item.file_path,
-                    doc_type=item.document_type,
-                    document_id=item.document_id,
+                return self.doc_pipeline.process_file(file_path=item.file_path).model_copy(
+                    update={"document_id": item.document_id}, deep=True,
                 )
             elif item.extracted_fields:
                 # Convert pre-extracted fields in UserDocumentInput directly to UserDocument
@@ -266,7 +264,7 @@ class InformationRetrievalAgent:
 
         if isinstance(item, str):
             if os.path.exists(item):
-                return self.doc_pipeline.process_document(file_path=item)
+                return self.doc_pipeline.process_file(file_path=item)
             else:
                 raise FileNotFoundError(f"User document file path does not exist: {item}")
 

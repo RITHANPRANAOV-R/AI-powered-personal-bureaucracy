@@ -220,6 +220,9 @@ class IntentUnderstandingService:
             return []
 
         if intent_type in {"update_request", "correction_request"}:
+            if update_type == "address" and len(set(re.findall(r"\b[1-9][0-9]{5}\b", message))) > 1:
+                return [MissingInformation(field_name="pincode", required=True, severity="medium",
+                    reason="Multiple PIN values were supplied. Explicitly confirm the PIN for the new address.")]
             if not update_type or update_type == "unknown":
                 return [
                     MissingInformation(

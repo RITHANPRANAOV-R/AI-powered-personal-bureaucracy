@@ -274,3 +274,16 @@ def test_request_mentioning_address_without_new_address_does_not_invent():
     assert result.update_type == "address"
     assert not any(e.entity_type == "address" for e in result.entities)
     assert any(item.field_name == "new_address" for item in result.missing_information)
+
+
+
+def test_multiple_address_pins_require_explicit_clarification_without_first_selection():
+    request = UserRequestInput(session_id="synthetic", user_message="Update my Aadhaar address to 12 Street, PIN 641025 or 560001")
+    result = service.process(request)
+    assert not any(entity.entity_type == "pincode" for entity in result.entities)
+    assert any(item.field_name == "pincode" and item.required for item in result.missing_information)
+
+
+def test_repeated_same_address_pin_is_unambiguous():
+    result = service.process(UserRequestInput(session_id="synthetic", user_message="Update my Aadhaar address to 12 Street, 641025. PIN 641025"))
+    assert [entity.value for entity in result.entities if entity.entity_type == "pincode"] == ["641025"]

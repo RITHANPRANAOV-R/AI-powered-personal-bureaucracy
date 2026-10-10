@@ -1,4 +1,5 @@
 """Phase 5C-3 handoff tests; no live HTTP, OCR initialization, or browser launch."""
+from agents.utility_based.execution_assistance.tests.review_fixtures import enroll, resolve_review, confirm_review, bind_context
 import asyncio
 import importlib
 from unittest.mock import AsyncMock, Mock, patch
@@ -272,27 +273,25 @@ def api_module():
 
 
 def test_confirmation_api_carries_optional_resolution_and_session_launch_keeps_it(api_module):
-    service = AadhaarDocumentService(extractor=Mock())
-    app = api_module.create_app(document_service=service)
-    client = TestClient(app)
-    result = resolution()
-    response = client.post("/api/documents/aadhaar/confirm", json={
-        "confirmed": True, "session_id": "handoff-session", "extraction": extraction().model_dump(mode="json"),
-        "address_resolution": result.model_dump(mode="json"),
-    })
-    assert response.status_code == 200
-    raw_context = response.json()["confirmed_context"]
-    assert raw_context["facts"]["address_resolution"]["value"] == result.model_dump(mode="json")
+    service = AadhaarDocumentService(extractor=Mock(), address_resolver=Mock(spec=PostalAddressResolver))
+    client = TestClient(api_module.create_app(document_service=service))
+    result = resolution(service.confirm(extraction()))
+    service.address_resolver.resolve.return_value = result
+    created, headers = enroll(client, extraction())
+    reviewed = resolve_review(client, created, headers)
+    assert reviewed.json()["confirmed_context"]["facts"]["address_resolution"]["value"] == result.model_dump(mode="json")
+    projected = confirm_review(client, reviewed, headers)
+    assert projected.status_code == 200
+    raw_context = projected.json()["confirmed_context"]
     ctx = ConfirmedExecutionContext.model_validate(raw_context)
     from agents.utility_based.execution_assistance.interactive_session import interactive_manager
     with patch.object(interactive_manager, "_launch_and_navigate_login", new=AsyncMock()):
         try:
-            response = client.post("/api/browser/launch-uidai", json={"confirmed_context": raw_context})
+            response = client.post("/api/browser/launch-uidai", json={"confirmed_context": raw_context}, headers=headers)
             assert response.status_code == 200
             assert interactive_manager._sessions[ctx.session_id].context.address_resolution == result
         finally:
             interactive_manager._sessions.pop(ctx.session_id, None)
-
 
 def test_confirmation_api_legacy_payload_still_has_no_resolution_fact(api_module):
     client = TestClient(api_module.create_app(document_service=AadhaarDocumentService(extractor=Mock())))
@@ -301,10 +300,61 @@ def test_confirmation_api_legacy_payload_still_has_no_resolution_fact(api_module
     assert "address_resolution" not in response.json()["confirmed_context"]["facts"]
 
 
-def test_confirmation_api_rejects_stale_resolution_after_pin_correction(api_module):
-    client = TestClient(api_module.create_app(document_service=AadhaarDocumentService(extractor=Mock())))
+def test_confirmation_api_invalidates_stale_resolution_after_pin_correction(api_module):
+    resolver = Mock(spec=PostalAddressResolver)
+    service = AadhaarDocumentService(extractor=Mock(), address_resolver=resolver)
+    client = TestClient(api_module.create_app(document_service=service))
+    original_extraction = extraction()
+    original_result = resolution()
+    original_json = original_result.model_dump_json()
+    resolver.resolve.return_value = original_result
+    created, headers = enroll(client, original_extraction)
+    review = resolve_review(client, created, headers)
+    initial = ConfirmedExecutionContext.model_validate(review.json()["confirmed_context"])
+    assert initial.address_resolution.status == ResolutionStatus.RESOLVED
+    assert initial.address_resolution.queried_pin == initial.facts["pincode"].value == PIN
+    resolver.resolve.reset_mock()
+    base = "/api/review-contexts/" + created["confirmed_context"]["review_context"]["id"]
+    response = client.post(base + "/action", headers=headers, json={"action": "correct", "corrections": {"pincode": "560001"}})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["confirmed_data"]["address_resolution"] is None
+    assert "address_resolution" not in body["confirmed_context"]["facts"]
+    cleaned = ConfirmedExecutionContext.model_validate(body["confirmed_context"])
+    assert cleaned.address_resolution is None
+    assert cleaned.facts["pincode"].value == "560001"
+    assert cleaned.facts["pincode"].provenance == FieldProvenance.USER_CORRECTED.value
+    assert cleaned.facts["pincode"].allowed_for_execution
+    assert cleaned.facts["new_address"].value == cleaned.facts["address"].value == ADDRESS
+    assert not {"state", "district", "post_office", "vtc"} & cleaned.facts.keys()
+    assert ConfirmedExecutionContext.model_validate_json(cleaned.model_dump_json()).address_resolution is None
+    resolver.resolve.assert_not_called()
+    assert original_result.model_dump_json() == original_json
+    assert initial.address_resolution.queried_pin == PIN
+    assert confirm_review(client, review, headers).status_code == 409
+    fresh = AddressResolutionResult(status=ResolutionStatus.UNAVAILABLE, queried_pin="560001")
+    resolver.resolve.return_value = fresh
+    response = client.post(base + "/resolve", headers=headers)
+    assert response.status_code == 200, response.text
+    resolver.resolve.assert_called_once()
+    assert resolver.resolve.call_args.args[0] == "560001"
+    assert resolver.resolve.call_args.args[1]["pincode"] == "560001"
+    fresh_context = ConfirmedExecutionContext.model_validate(response.json()["confirmed_context"])
+    assert fresh_context.address_resolution == fresh
+    assert not fresh_context.facts["address_resolution"].allowed_for_execution
+    assert fresh_context.facts["pincode"].value == "560001"
+
+def test_confirmation_api_rejects_inconsistent_resolution_without_correction(api_module):
+    resolver = Mock(spec=PostalAddressResolver)
+    service = AadhaarDocumentService(extractor=Mock(), address_resolver=resolver)
+    client = TestClient(api_module.create_app(document_service=service))
+    inconsistent = extraction()
+    inconsistent.data.pincode = inconsistent.data.pincode.model_copy(update={"value": "560001"})
+    # No correction event invalidates this attached envelope: model validation must reject it.
     response = client.post("/api/documents/aadhaar/confirm", json={
-        "confirmed": True, "extraction": extraction().model_dump(mode="json"),
-        "corrections": {"pincode": "560001"}, "address_resolution": resolution().model_dump(mode="json"),
+        "confirmed": True, "extraction": inconsistent.model_dump(mode="json"),
+        "address_resolution": resolution().model_dump(mode="json"),
     })
     assert response.status_code == 400
+    assert "scoped endpoints" in response.json()["detail"]  # Client envelopes are rejected before they can become authoritative.
+    resolver.resolve.assert_not_called()

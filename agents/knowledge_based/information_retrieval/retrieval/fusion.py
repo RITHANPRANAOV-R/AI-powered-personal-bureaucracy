@@ -133,7 +133,7 @@ def convert_linking_result_to_evidence(linking_result: LinkingResult) -> List[Ev
                 grounding_status=GroundingStatus.UNVERIFIED,
                 metadata={
                     "evidence_origin": EvidenceOrigin.REQUIREMENT_DOCUMENT_LINK.value,
-                    "freshness_type": FreshnessType.STORED_OFFICIAL_DOCUMENT.value,
+                    "freshness_type": FreshnessType.UNKNOWN_FRESHNESS.value,
                     "link_id": link.link_id,
                     "requirement_id": link.requirement_id,
                     "category": link.requirement_category,
@@ -142,6 +142,7 @@ def convert_linking_result_to_evidence(linking_result: LinkingResult) -> List[Ev
                     "matched_document_type": link.matched_document_type,
                     "missing_fields": link.missing_fields,
                     "official_evidence_ids": link.official_evidence_ids,
+                    "requirement_validation": link.metadata.get("requirement_validation"),
                 },
             )
         )
@@ -273,16 +274,16 @@ class EvidenceFusionEngine:
 
         # 1. Process Official Stored Knowledge Evidence
         for ev in (knowledge_evidence or []):
-            ev.metadata["evidence_origin"] = EvidenceOrigin.OFFICIAL_STORED.value
-            ev.metadata["freshness_type"] = FreshnessType.STORED_OFFICIAL_DOCUMENT.value
+            ev.metadata.setdefault("evidence_origin", EvidenceOrigin.OFFICIAL_STORED.value)
+            ev.metadata.setdefault("freshness_type", FreshnessType.STORED_OFFICIAL_DOCUMENT.value)
             fused_evidence.append(ev)
             if ev.source and ev.source.source_id:
                 sources_dict[ev.source.source_id] = ev.source
 
         # 2. Process Official Live Evidence
         for ev in (live_evidence or []):
-            ev.metadata["evidence_origin"] = EvidenceOrigin.OFFICIAL_LIVE.value
-            ev.metadata["freshness_type"] = FreshnessType.LIVE_CURRENT_RETRIEVAL.value
+            ev.metadata.setdefault("evidence_origin", EvidenceOrigin.OFFICIAL_LIVE.value)
+            ev.metadata.setdefault("freshness_type", FreshnessType.LIVE_CURRENT_RETRIEVAL.value)
             fused_evidence.append(ev)
             if ev.source and ev.source.source_id:
                 sources_dict[ev.source.source_id] = ev.source

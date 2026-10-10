@@ -3,12 +3,12 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from typing import Optional
-from uuid import uuid4
 
 from agents.orchestration.workflow_planning.schema import PlanStep, StepType
 from .adapter import ExecutionAdapter
 from .schema import (
     AdapterResult,
+    ActionExecutionResult, ExecutionOutcome,
     AdapterStatus,
     ConfirmedExecutionContext,
     HumanIntervention,
@@ -53,8 +53,9 @@ class UIDAIExecutionAdapter(ExecutionAdapter):
             return self._execute_portal_submission(step, context)
 
         return AdapterResult(
-            status=AdapterStatus.COMPLETED,
-            outcome=f"Step '{step.title}' executed successfully.",
+            status=AdapterStatus.UNKNOWN,
+            outcome="No verified implementation exists for this action.",
+            execution_result=ActionExecutionResult(status=ExecutionOutcome.UNKNOWN, message="External outcome is unverified."),
         )
 
     def _execute_document_requirement(
@@ -78,9 +79,9 @@ class UIDAIExecutionAdapter(ExecutionAdapter):
                         )
 
         return AdapterResult(
-            status=AdapterStatus.COMPLETED,
-            outcome=f"Supporting documentation verified for step '{step.title}'.",
-            portal_reference=context.document_refs[0] if context.document_refs else None,
+            status=AdapterStatus.UNKNOWN,
+            outcome="Document references are present; document acceptance has not been verified.",
+            execution_result=ActionExecutionResult(status=ExecutionOutcome.UNKNOWN, message="Document acceptance is unverified."),
         )
 
     def _execute_portal_submission(
@@ -97,7 +98,7 @@ class UIDAIExecutionAdapter(ExecutionAdapter):
                     status=AdapterStatus.HUMAN_INTERVENTION_REQUIRED,
                     outcome="Aadhaar authentication OTP is required to submit the update to UIDAI.",
                     human_intervention=HumanIntervention(
-                        reason="UIDAI OTP sent to registered mobile number for authentication.",
+                        reason="Human-controlled UIDAI OTP authentication is required.",
                         required_user_action="Enter the 6-digit OTP sent to your Aadhaar-registered mobile number.",
                         checkpoint_reference=checkpoint_ref,
                         resumable=True,
@@ -108,29 +109,19 @@ class UIDAIExecutionAdapter(ExecutionAdapter):
             if not re.match(r"^\d{6}$", otp_str):
                 return AdapterResult(
                     status=AdapterStatus.FAILED,
-                    outcome=f"Invalid OTP '{otp_str}'. UIDAI OTP must be exactly 6 digits.",
+                    outcome="Invalid OTP format. UIDAI OTP must be exactly 6 digits.",
                     error_category="invalid_otp",
                     retryable=True,
                 )
 
-        urn = self._generate_urn()
-        srn = f"S{uuid4().hex[:13].upper()}"
-
         from .browser_autofill import launch_in_chromium
-        launch_in_chromium(context, urn)
+        launch_in_chromium(context, "")
 
         return AdapterResult(
-            status=AdapterStatus.COMPLETED,
-            outcome=(
-                f"Aadhaar update request submitted successfully to UIDAI. "
-                f"Update Request Number (URN): {urn}. Service Request Number (SRN): {srn}."
+            status=AdapterStatus.UNKNOWN,
+            outcome="UIDAI submission and official reference have not been verified.",
+            execution_result=ActionExecutionResult(
+                status=ExecutionOutcome.UNKNOWN,
+                message="No verified government response is available.",
             ),
-            portal_reference=urn,
         )
-
-    @staticmethod
-    def _generate_urn() -> str:
-        part1 = "0000"
-        part2 = f"{uuid4().int % 90000 + 10000:05d}"
-        part3 = f"{uuid4().int % 90000 + 10000:05d}"
-        return f"{part1}/{part2}/{part3}"

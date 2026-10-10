@@ -14,7 +14,7 @@ from agents.knowledge_based.information_retrieval.schemas.user_document import (
     ExtractionMethod,
     OCRStatus,
 )
-from agents.knowledge_based.information_retrieval.ingestion.parser import DocumentParser
+from agents.knowledge_based.information_retrieval.ingestion.parser import DocumentParser, ParseStatus
 from agents.knowledge_based.information_retrieval.document_understanding.ocr_engine import (
     BaseOCREngine,
     PaddleOCREngine,
@@ -78,57 +78,31 @@ class UserDocumentPipeline:
         avg_confidence = 1.0
         page_count = 1
         warnings = []
+        pages = []
 
         # 2. PDF vs Image Processing Pipeline
         if ext == ".pdf":
             try:
-                parsed_pdf = self.parser.parse_pdf(file_bytes, fallback_title=orig_filename)
+                parsed_pdf = self.parser.extract_pdf_pages(file_bytes, self.ocr_engine, fallback_title=orig_filename)
+                if parsed_pdf.status in {ParseStatus.MALFORMED_PDF, ParseStatus.ENCRYPTED_PDF, ParseStatus.EMPTY_DOCUMENT}:
+                    return UserDocument(document_id=doc_id, filename=orig_filename, mime_type=ext,
+                        ocr_status=OCRStatus.FAILED, overall_confidence=0.0,
+                        warnings=[parsed_pdf.error_message or "PDF could not be read."])
+                pages = parsed_pdf.pages
                 page_count = parsed_pdf.total_pages or 1
-                direct_text = "\n".join(p.raw_text for p in parsed_pdf.pages) if parsed_pdf.pages else ""
-
-                # OCR Decision Logic: Check if PDF contains direct extractable text
-                if len(direct_text.strip()) >= 50 and not parsed_pdf.is_ocr_required:
-                    extracted_text = direct_text
-                    extraction_method = ExtractionMethod.DIRECT_TEXT_PDF
-                    ocr_status = OCRStatus.NOT_REQUIRED
-                    avg_confidence = 0.98
+                usable = [page for page in pages if page.confidence > 0 and self.parser.is_text_usable(page.raw_text)]
+                extracted_text = "\n".join(page.raw_text for page in usable)
+                used_ocr = any(page.extraction_method == "ocr" for page in usable)
+                extraction_method = ExtractionMethod.OCR_SCANNED_PDF if used_ocr else ExtractionMethod.DIRECT_TEXT_PDF
+                avg_confidence = sum(page.confidence for page in usable) / len(usable) if usable else 0.0
+                warnings.extend(f"Page {page.page_number}: {warning}" for page in pages for warning in page.warnings)
+                if not usable:
+                    ocr_status = OCRStatus.FAILED
+                    warnings.append("No readable text was extracted. Provide a clearer document or an available local OCR engine.")
+                elif len(usable) < len(pages) or any(page.warnings for page in pages):
+                    ocr_status = OCRStatus.PARTIAL_SUCCESS
                 else:
-                    logger.info(f"PDF '{orig_filename}' requires OCR (extracted chars < 50). Triggering OCR.")
-                    ocr_lines = []
-                    ocr_confs = []
-
-                    try:
-                        import fitz  # PyMuPDF
-                        pdf_doc = fitz.open(stream=file_bytes, filetype="pdf")
-                        for page in pdf_doc:
-                            pix = page.get_pixmap(dpi=150)
-                            img_bytes = pix.tobytes("png")
-                            page_text, page_conf = self.ocr_engine.extract_text_from_image(img_bytes)
-                            if page_text:
-                                ocr_lines.append(page_text)
-                                ocr_confs.append(page_conf)
-                        pdf_doc.close()
-                    except Exception as render_err:
-                        logger.warning(f"PyMuPDF rendering failed or invalid PDF stream: {render_err}. Falling back to raw bytes for OCR engine/mock.")
-                        ocr_text_fb, ocr_conf_fb = self.ocr_engine.extract_text_from_image(file_bytes)
-                        if ocr_text_fb:
-                            ocr_lines.append(ocr_text_fb)
-                            ocr_confs.append(ocr_conf_fb)
-
-                    ocr_text = "\n".join(ocr_lines) if ocr_lines else ""
-                    ocr_conf = sum(ocr_confs) / len(ocr_confs) if ocr_confs else 0.0
-
-                    if ocr_text:
-                        extracted_text = ocr_text
-                        extraction_method = ExtractionMethod.OCR_SCANNED_PDF
-                        ocr_status = OCRStatus.SUCCESS
-                        avg_confidence = ocr_conf
-                    else:
-                        extracted_text = direct_text
-                        extraction_method = ExtractionMethod.OCR_SCANNED_PDF
-                        ocr_status = OCRStatus.FAILED
-                        warnings.append("Scanned PDF OCR produced empty output; using partial text.")
-                        avg_confidence = 0.3
+                    ocr_status = OCRStatus.SUCCESS if used_ocr else OCRStatus.NOT_REQUIRED
 
             except Exception as e:
                 logger.error(f"Error parsing PDF '{orig_filename}': {e}")
@@ -157,7 +131,20 @@ class UserDocumentPipeline:
         doc_type, class_conf = self.classifier.classify(extracted_text)
 
         # 4. Structured Field Extraction
-        extracted_fields = self.field_extractor.extract_fields(extracted_text, doc_type)
+        if pages:
+            from .ocr_engine import OCRLine
+            extracted_fields = {}
+            for page in pages:
+                if page.confidence <= 0 or not self.parser.is_text_usable(page.raw_text):
+                    continue
+                fields = self.field_extractor.extract_fields(page.raw_text, doc_type, page_number=page.page_number,
+                    ocr_lines=[OCRLine.model_validate(line) for line in page.ocr_lines])
+                for key, field in fields.items():
+                    field = field.model_copy(update={"confidence": min(field.confidence, page.confidence)}, deep=True)
+                    if key not in extracted_fields or field.confidence > extracted_fields[key].confidence:
+                        extracted_fields[key] = field
+        else:
+            extracted_fields = self.field_extractor.extract_fields(extracted_text, doc_type)
 
         return UserDocument(
             document_id=doc_id,
@@ -167,9 +154,10 @@ class UserDocumentPipeline:
             classification_confidence=class_conf,
             extraction_method=extraction_method,
             page_count=page_count,
+            pages=[page.model_dump(mode="json") for page in pages],
             extracted_text=extracted_text,
             extracted_fields=extracted_fields,
-            overall_confidence=round((avg_confidence * 0.7) + (class_conf * 0.3), 4),
+            overall_confidence=round((avg_confidence * 0.7) + (class_conf * 0.3), 4) if extracted_text.strip() else 0.0,
             ocr_status=ocr_status,
             warnings=warnings,
         )

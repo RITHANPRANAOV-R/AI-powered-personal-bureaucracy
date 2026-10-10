@@ -41,6 +41,9 @@ class GroundingVerifier:
         if not reqs and not evidence.metadata.get("category"):
             return GroundingStatus.INVALID
 
+        from .supporting_requirements import traceable
+        if not traceable(evidence):
+            return GroundingStatus.UNVERIFIED
         return GroundingStatus.VERIFIED_GROUNDED
 
 

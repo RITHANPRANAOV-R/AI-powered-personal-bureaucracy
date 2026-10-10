@@ -31,6 +31,7 @@ class ExecutionStatus(str, Enum):
 
 
 class StepExecutionStatus(str, Enum):
+    UNKNOWN = "unknown"
     COMPLETED = "completed"
     SUBMITTED_PENDING = "submitted_pending"
     BLOCKED = "blocked"
@@ -39,10 +40,39 @@ class StepExecutionStatus(str, Enum):
 
 
 class AdapterStatus(str, Enum):
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
     COMPLETED = "completed"
     SUBMITTED_PENDING = "submitted_pending"
     FAILED = "failed"
     HUMAN_INTERVENTION_REQUIRED = "human_intervention_required"
+
+
+class ExecutionOutcome(str, Enum):
+    VERIFIED_SUCCESS = "VERIFIED_SUCCESS"
+    FAILED = "FAILED"
+    NEEDS_USER = "NEEDS_USER"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ActionExecutionResult(BaseModel):
+    """An external outcome; evidence describes the state actually observed."""
+    status: ExecutionOutcome
+    message: str = Field(min_length=1)
+    verification_evidence: str | None = None
+    official_reference: str | None = None
+
+    @model_validator(mode="after")
+    def require_verification(self):
+        if self.status == ExecutionOutcome.VERIFIED_SUCCESS:
+            if not self.verification_evidence or not self.verification_evidence.strip():
+                raise ValueError("Verified success requires observed external-state evidence.")
+        else:
+            self.official_reference = None
+        if self.official_reference is not None:
+            self.official_reference = self.official_reference.strip() or None
+        return self
 
 
 class ConfirmedFact(BaseModel):
@@ -52,6 +82,8 @@ class ConfirmedFact(BaseModel):
     provenance: str = Field(min_length=1)
     status: FactStatus
     allowed_for_execution: bool = False
+    source_document_id: str | None = None
+    resolution_projection: dict[str, Any] | None = None
 
 
 class ConfirmedExecutionContext(BaseModel):
@@ -61,11 +93,13 @@ class ConfirmedExecutionContext(BaseModel):
     document_refs: list[str] = Field(default_factory=list)
     session_id: str = Field(min_length=1)
     application_id: Optional[str] = None
+    review_context: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def preserve_address_resolution_metadata(self):
         fact = self.facts.get("address_resolution")
         if fact is None:
+            self._validate_resolver_projection()
             return self
         resolution = AddressResolutionResult.model_validate(fact.value).model_copy(deep=True)
         if resolution.status == AddressResolutionStatus.RESOLVED:
@@ -88,7 +122,23 @@ class ConfirmedExecutionContext(BaseModel):
             "status": _resolution_fact_status(resolution),
             "allowed_for_execution": False,
         })
+        self._validate_resolver_projection()
         return self
+
+    def _validate_resolver_projection(self):
+        if any(fact.resolution_projection is not None or fact.provenance == "address_resolution_confirmed" for fact in self.facts.values()):
+            from .address_projection import validate_projection
+            validate_projection(self)
+
+    @property
+    def known_document_ids(self) -> set[str]:
+        """Trace references to source documents/evidence, never the reference list itself."""
+        ids = {fact.source_document_id for fact in self.facts.values() if fact.source_document_id}
+        evidence = self.facts.get("document_evidence")
+        if evidence is not None and isinstance(evidence.value, dict):
+            if isinstance(evidence.value.get("document_id"), str) and evidence.value["document_id"]:
+                ids.add(evidence.value["document_id"])
+        return ids
 
     @property
     def address_resolution(self) -> AddressResolutionResult | None:
@@ -170,6 +220,8 @@ class ExecutionRequest(BaseModel):
 class AdapterResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    execution_result: ActionExecutionResult | None = None
+
     status: AdapterStatus
     outcome: str = Field(min_length=1)
     error_category: Optional[str] = None
@@ -180,6 +232,8 @@ class AdapterResult(BaseModel):
 
 class StepExecutionResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
+
+    execution_result: ActionExecutionResult | None = None
 
     step_id: str = Field(min_length=1)
     status: StepExecutionStatus

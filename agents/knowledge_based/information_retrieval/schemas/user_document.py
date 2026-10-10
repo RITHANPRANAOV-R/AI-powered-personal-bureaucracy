@@ -62,6 +62,7 @@ class UserDocument(BaseModel):
     classification_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Document classification confidence")
     extraction_method: ExtractionMethod = Field(default=ExtractionMethod.UNKNOWN, description="Text extraction technique used")
     page_count: int = Field(default=1, ge=1, description="Total pages in document")
+    pages: List[Dict[str, Any]] = Field(default_factory=list, description="Per-page extraction evidence and uncertainty")
     extracted_text: str = Field(default="", description="Full raw text extracted from document")
     extracted_fields: Dict[str, ExtractedField] = Field(default_factory=dict, description="Structured fields extracted")
     overall_confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Overall extraction confidence score")

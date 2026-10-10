@@ -32,6 +32,8 @@ from agents.knowledge_based.information_retrieval.retrieval.fusion import (
 )
 from agents.knowledge_based.information_retrieval.retrieval.ranker import EvidenceRanker
 
+from .supporting_requirements import FAQ_ID, FAQ_URL, service_key, supporting_requirements, passage_digest
+
 logger = logging.getLogger(__name__)
 
 
@@ -133,15 +135,29 @@ class HybridRetriever:
         ranked_evidence = self.ranker.rank_and_verify(fused_evidence)
 
         # 4b. CANONICAL FALLBACK FOR COLD-START / OFFLINE ENVIRONMENTS
-        has_grounded_requirements = any(req.get("evidence_ids") for req in req_summaries)
-        if (not ranked_evidence or not req_summaries or not has_grounded_requirements) and (request.domain or "aadhaar").lower() == "aadhaar":
+        has_retrieved_evidence = bool(ranked_evidence)
+        if (not ranked_evidence or not req_summaries or not has_retrieved_evidence) and (request.domain or "aadhaar").lower() == "aadhaar":
             target_key = request.service or request.goal or "address"
             can_ev, can_req, can_sources = get_canonical_evidence_and_requirements(target_key, "aadhaar")
-            if not ranked_evidence or not has_grounded_requirements:
+            if not ranked_evidence or not has_retrieved_evidence:
                 ranked_evidence = can_ev
                 req_summaries = can_req
                 sources = can_sources
 
+        # Supporting requirements must come from captured service-specific source evidence.
+        if request.domain == "aadhaar" and service_key(request.service):
+            proven = supporting_requirements(request.service, ranked_evidence)
+            if not proven:
+                warnings.append(WarningItem(warning_id="warn_supporting_documents_unknown",
+                    code="SUPPORTING_DOCUMENT_REQUIREMENTS_UNKNOWN",
+                    message="No traceable service-specific UIDAI supporting-document evidence is available."))
+            req_summaries = proven or [{
+                "requirement_id": "uidai_supporting_documents_unknown",
+                "category": "document", "service": service_key(request.service),
+                "description": "Authoritative accepted-document evidence unavailable.",
+                "grounding_status": "unverified", "evidence_ids": [],
+                "accepted_document_types": [], "source_retrieved_at": None,
+            }]
         # 5. DETERMINE RETRIEVAL STATUS
         if ranked_evidence:
             if effective_mode == RetrievalMode.HYBRID and (not live_evidence and knowledge_evidence):
@@ -192,6 +208,12 @@ class HybridRetriever:
             )
             return live_evidence, warnings
 
+        if domain == "aadhaar" and service_key(request.service):
+            source = Source(source_id=FAQ_ID, authority="UIDAI", domain="aadhaar",
+                            url=FAQ_URL, document_title="UIDAI Aadhaar Online Services FAQ", last_checked="",
+                            source_type=SourceType.OFFICIAL_FAQ)
+            auth_sources = [source]
+
         # Attempt live fetching on primary portal source
         for source in auth_sources[:2]:  # Limit live fetch calls to top 2 registered sources
             # Verify authority before fetching
@@ -209,13 +231,26 @@ class HybridRetriever:
             live_res: LiveRetrievalResult = self.live_fetcher.fetch_source(source)
 
             if live_res.status == LiveRetrievalStatus.SUCCESS and live_res.is_usable_content:
+                source.last_checked = live_res.retrieved_at
                 text = live_res.extracted_text or ""
+                if source.source_id == FAQ_ID:
+                    normalized = " ".join(text.split())
+                    question = ("What documents can I submit to update document in Aadhaar?"
+                                if service_key(request.service) == "document_update" else
+                                "My online address update request got rejected for invalid documents. What does this mean?")
+                    end = ("How can I submit the documents online?" if service_key(request.service) == "document_update"
+                           else "Secure QR Code Reader")
+                    if question not in normalized or end not in normalized.split(question, 1)[1]:
+                        continue
+                    text = question + normalized.split(question, 1)[1].split(end, 1)[0]
+                else:
+                    text = text[:1000]
                 # Process requirement snippets
                 ev_id = f"live_{source.source_id}_{int(datetime.now(timezone.utc).timestamp())}"
                 evidence_item = Evidence(
                     evidence_id=ev_id,
                     claim=f"Live official web evidence for {request.service}",
-                    passage=text[:1000],  # Capture leading content snippet
+                    passage=text,
                     source=source,
                     retrieved_at=live_res.retrieved_at,
                     confidence=1.0,
@@ -227,6 +262,11 @@ class HybridRetriever:
                         "last_modified": live_res.last_modified,
                         "etag": live_res.etag,
                         "category": request.service,
+                        "evidence_origin": "official_live",
+                        "capture_kind": "http_response",
+                        "captured_passage_sha256": passage_digest(text),
+                        "effective_url": live_res.redirected_url or live_res.url,
+                        "source_retrieved_at": live_res.retrieved_at,
                     },
                 )
                 live_evidence.append(evidence_item)

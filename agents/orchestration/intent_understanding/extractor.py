@@ -53,10 +53,8 @@ def _detect_aadhaar_number(value: str) -> str | None:
 
 
 def _detect_pincode(value: str) -> str | None:
-    match = re.search(r"\b[1-9]\d{5}\b", value)
-    if match:
-        return match.group(0)
-    return None
+    candidates = set(re.findall(r"\b[1-9][0-9]{5}\b", value))
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _detect_address_value(value: str) -> str | None:

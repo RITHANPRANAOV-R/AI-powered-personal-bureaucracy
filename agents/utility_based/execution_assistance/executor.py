@@ -9,6 +9,7 @@ from .authorization import authorization_contains_approval, validate_authorizati
 from .context_validator import validate_context
 from .schema import (
     AdapterStatus,
+    AdapterResult, ActionExecutionResult, ExecutionOutcome,
     ExecutionEvent,
     ExecutionRequest,
     ExecutionResult,
@@ -75,9 +76,38 @@ class ExecutionCoordinator:
                 return self._blocked(base, context_error, step_results, events)
 
             started_at = datetime.now(timezone.utc)
-            adapter_result = self.adapter.execute_step(step, request.confirmed_context)
+            try:
+                adapter_result = AdapterResult.model_validate(self.adapter.execute_step(step, request.confirmed_context))
+                if adapter_result.execution_result is not None:
+                    action_result = ActionExecutionResult.model_validate(adapter_result.execution_result.model_dump())
+                    adapter_result.status = {
+                        ExecutionOutcome.VERIFIED_SUCCESS: AdapterStatus.COMPLETED,
+                        ExecutionOutcome.FAILED: AdapterStatus.FAILED,
+                        ExecutionOutcome.NEEDS_USER: AdapterStatus.HUMAN_INTERVENTION_REQUIRED,
+                        ExecutionOutcome.BLOCKED: AdapterStatus.BLOCKED,
+                        ExecutionOutcome.UNKNOWN: AdapterStatus.UNKNOWN,
+                    }[action_result.status]
+                    adapter_result.outcome = action_result.message
+                    adapter_result.portal_reference = action_result.official_reference
+                elif step.step_type == StepType.USER_ACTION and adapter_result.status in {AdapterStatus.COMPLETED, AdapterStatus.SUBMITTED_PENDING}:
+                    adapter_result.status = AdapterStatus.UNKNOWN
+                    adapter_result.outcome = "Government action returned without verified external-state evidence."
+                if adapter_result.execution_result is None:
+                    state = {
+                        AdapterStatus.FAILED: ExecutionOutcome.FAILED,
+                        AdapterStatus.HUMAN_INTERVENTION_REQUIRED: ExecutionOutcome.NEEDS_USER,
+                        AdapterStatus.BLOCKED: ExecutionOutcome.BLOCKED,
+                    }.get(adapter_result.status, ExecutionOutcome.UNKNOWN)
+                    adapter_result.execution_result = ActionExecutionResult(status=state, message=adapter_result.outcome)
+                    adapter_result.portal_reference = None
+            except Exception:
+                adapter_result = AdapterResult(
+                    status=AdapterStatus.FAILED, outcome="Execution action failed or returned an invalid result.",
+                    execution_result=ActionExecutionResult(status=ExecutionOutcome.FAILED, message="Execution action failed or returned an invalid result."),
+                )
             completed_at = datetime.now(timezone.utc)
             step_result = StepExecutionResult(
+                execution_result=adapter_result.execution_result,
                 step_id=step.step_id,
                 status=self._step_status(adapter_result.status),
                 action_attempted=step.title,
@@ -123,12 +153,13 @@ class ExecutionCoordinator:
                     events=events,
                     failure_reason=adapter_result.outcome,
                 )
-            completed_ids.add(step.step_id)
-            events.append(ExecutionEvent(event_type="step_completed", execution_id=execution_id, step_id=step.step_id))
-
+            if adapter_result.status in {AdapterStatus.UNKNOWN, AdapterStatus.BLOCKED}:
+                return self._blocked(base, adapter_result.outcome, step_results, events)
             if adapter_result.status == AdapterStatus.SUBMITTED_PENDING:
                 events.append(ExecutionEvent(event_type="execution_submitted_pending", execution_id=execution_id, step_id=step.step_id))
                 return ExecutionResult(**base, status=ExecutionStatus.SUBMITTED_PENDING, step_results=step_results, events=events)
+            completed_ids.add(step.step_id)
+            events.append(ExecutionEvent(event_type="step_completed", execution_id=execution_id, step_id=step.step_id))
 
         events.append(ExecutionEvent(event_type="execution_completed", execution_id=execution_id))
         return ExecutionResult(**base, status=ExecutionStatus.COMPLETED, step_results=step_results, events=events)
@@ -186,6 +217,8 @@ class ExecutionCoordinator:
     @staticmethod
     def _step_status(status: AdapterStatus) -> StepExecutionStatus:
         return {
+            AdapterStatus.UNKNOWN: StepExecutionStatus.UNKNOWN,
+            AdapterStatus.BLOCKED: StepExecutionStatus.BLOCKED,
             AdapterStatus.COMPLETED: StepExecutionStatus.COMPLETED,
             AdapterStatus.SUBMITTED_PENDING: StepExecutionStatus.SUBMITTED_PENDING,
             AdapterStatus.FAILED: StepExecutionStatus.FAILED,

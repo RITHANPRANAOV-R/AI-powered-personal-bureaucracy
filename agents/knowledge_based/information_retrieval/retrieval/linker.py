@@ -66,7 +66,7 @@ class RequirementDocumentLinker:
         warnings: List[str] = []
 
         # 1. Extract Requirements from RetrievalResult
-        raw_reqs = retrieval_result.requirements or []
+        raw_reqs = list(retrieval_result.requirements or [])
 
         # Fallback to evidence categories if requirements list is empty
         if not raw_reqs and retrieval_result.evidence:
@@ -97,6 +97,8 @@ class RequirementDocumentLinker:
                 if cat:
                     evidence_by_category.setdefault(cat, []).append(ev.evidence_id)
 
+        from .supporting_requirements import supporting_requirements, service_key
+        proven = supporting_requirements(retrieval_result.service, retrieval_result.evidence)
         # 2. Process Requirement Matching
         for req_dict in raw_reqs:
             r_id = req_dict.get("requirement_id", f"req_{len(links)+1}")
@@ -106,6 +108,11 @@ class RequirementDocumentLinker:
             # Identify target doc types and required fields
             target_types, target_fields = self._resolve_target_specs(r_cat, r_desc)
 
+            authority = next((item for item in proven if item["requirement_id"] == r_id
+                              and item["category"] == r_cat
+                              and item["service"] == service_key(req_dict.get("service"))), None)
+            if authority and authority["accepted_document_types"]:
+                target_types = authority["accepted_document_types"]
             matched_link = self._match_candidate_documents(
                 r_id=r_id,
                 r_cat=r_cat,
@@ -116,6 +123,27 @@ class RequirementDocumentLinker:
                 official_evidence_ids=evidence_by_category.get(r_cat, []),
             )
 
+            # Content coverage is distinct from source-grounded type eligibility.
+            selected = next((doc for doc in user_documents if doc.document_id == matched_link.matched_document_id),
+                            user_documents[0] if user_documents else None)
+            eligibility = "unknown"
+            if authority and selected:
+                kind = selected.document_type.value if hasattr(selected.document_type, "value") else str(selected.document_type)
+                if kind in authority["accepted_document_types"]:
+                    eligibility = "accepted"
+                elif kind in authority["not_accepted_document_types"]:
+                    eligibility = "not_accepted"
+            if authority:
+                matched_link.official_evidence_ids = authority["evidence_ids"]
+            matched_link.metadata["requirement_validation"] = {
+                "status": eligibility, "scope": "document_type_only", "document_verified": False,
+                "document_eligibility": "unknown", "conditions_verified": False,
+                "document_id": selected.document_id if selected else None,
+                "document_type": (selected.document_type.value if hasattr(selected.document_type, "value") else str(selected.document_type)) if selected else None,
+                "service": service_key(retrieval_result.service), "requirement": authority,
+                "evidence": [ev.model_dump(mode="json") for ev in retrieval_result.evidence
+                             if authority and ev.evidence_id in authority["evidence_ids"]],
+            }
             links.append(matched_link)
             if matched_link.status == LinkStatus.MISSING_DOCUMENT:
                 uncovered.append(r_id)
@@ -201,7 +229,7 @@ class RequirementDocumentLinker:
         # Check field presence and confidence
         matched_fields = []
         missing_fields = []
-        matching_reasons = [f"Candidate document '{candidate_doc.filename}' (Type: {to_str(candidate_doc.document_type)}) is compatible"]
+        matching_reasons = [f"Candidate document '{candidate_doc.filename}' (Type: {to_str(candidate_doc.document_type)}) is a content candidate; eligibility is evaluated separately"]
 
         for req_f in target_fields:
             if req_f in candidate_doc.extracted_fields:
